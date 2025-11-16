@@ -5,6 +5,14 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import "./homepage.css";
 
+const CHATBOT_IMAGES = {
+  idle: "/chatbot-idle.png",
+  hover: "/chatbot-hover.png",
+  speaking: "/chatbot-speaking.png",
+};
+
+const CHATBOT_SPEAK_DELAY = 1500;
+
 function toDateInput(value) {
   if (!value) return "";
   const date = new Date(value);
@@ -85,6 +93,7 @@ function applyFilters(items = [], filters) {
 export default function Homepage() {
   const router = useRouter();
   const profileMenuRef = useRef(null);
+  const chatbotTimerRef = useRef(null);
   const [hasEntered, setHasEntered] = useState(false);
   const [activeTab, setActiveTab] = useState("my-groceries");
   const [isProfileMenuOpen, setProfileMenuOpen] = useState(false);
@@ -122,6 +131,7 @@ export default function Homepage() {
   });
   const [cartItems, setCartItems] = useState([]);
   const [cartState, setCartState] = useState({ loading: false, error: null, success: null });
+  const [chatbotState, setChatbotState] = useState("idle");
 
   useEffect(() => {
     const timer = setTimeout(() => setHasEntered(true), 3000);
@@ -181,6 +191,32 @@ export default function Homepage() {
     }
   }, []);
 
+  const handleChatbotInteractionStart = useCallback(() => {
+    if (chatbotTimerRef.current) {
+      clearTimeout(chatbotTimerRef.current);
+      chatbotTimerRef.current = null;
+    }
+
+    setChatbotState((previous) => {
+      if (previous === "speaking") {
+        return previous;
+      }
+      chatbotTimerRef.current = setTimeout(() => {
+        setChatbotState("speaking");
+        chatbotTimerRef.current = null;
+      }, CHATBOT_SPEAK_DELAY);
+      return "hover";
+    });
+  }, []);
+
+  const handleChatbotInteractionEnd = useCallback(() => {
+    if (chatbotTimerRef.current) {
+      clearTimeout(chatbotTimerRef.current);
+      chatbotTimerRef.current = null;
+    }
+    setChatbotState("idle");
+  }, []);
+
   useEffect(() => {
     if (!user?.id) return;
     fetchInventoryItems();
@@ -189,6 +225,14 @@ export default function Homepage() {
   useEffect(() => {
     fetchMarketplaceItems();
   }, [fetchMarketplaceItems]);
+
+  useEffect(() => {
+    return () => {
+      if (chatbotTimerRef.current) {
+        clearTimeout(chatbotTimerRef.current);
+      }
+    };
+  }, []);
 
   function refreshItems() {
     if (user?.id) {
@@ -554,6 +598,7 @@ export default function Homepage() {
     { label: "Frozen", icon: "🧊", filter: "frozen" },
   ];
   const [selectedCategory, setSelectedCategory] = useState(null);
+  const chatbotImageSrc = CHATBOT_IMAGES[chatbotState] ?? CHATBOT_IMAGES.idle;
 
   return (
     <main className="homepage-root">
@@ -1102,6 +1147,39 @@ export default function Homepage() {
                     </div>
 
                 </section>
+            </div>
+            <div
+                className="chatbot-container"
+                onMouseEnter={handleChatbotInteractionStart}
+                onMouseLeave={handleChatbotInteractionEnd}
+            >
+                {chatbotState === "speaking" && (
+                    <div className="chatbot-bubble" aria-live="polite">
+                        <Image
+                            src="/speechbubble.png"
+                            alt="Chatbot speech bubble"
+                            width={260}
+                            height={180}
+                            className="chatbot-bubble-image"
+                        />
+                        <span className="chatbot-bubble-text" aria-hidden="true" />
+                    </div>
+                )}
+                <button
+                    type="button"
+                    className="chatbot-trigger"
+                    onFocus={handleChatbotInteractionStart}
+                    onBlur={handleChatbotInteractionEnd}
+                    aria-label="Open SaveMyFoods chatbot"
+                >
+                    <Image
+                        src={chatbotImageSrc}
+                        alt="SaveMyFoods chatbot"
+                        width={140}
+                        height={140}
+                        className="chatbot-image"
+                    />
+                </button>
             </div>
             {isModalOpen && (
                 <div className="modal-overlay" role="dialog" aria-modal="true">
