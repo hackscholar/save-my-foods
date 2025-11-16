@@ -310,6 +310,7 @@ export default function Homepage() {
       chatbotTimerRef.current = null;
     }
     setChatbotState("idle");
+    setChatbotRecipe(INITIAL_CHATBOT_RECIPE);
   }, []);
 
   async function fetchNotificationsList(limit = 50) {
@@ -390,9 +391,41 @@ export default function Homepage() {
     setIngredientPopupOpen(true);
   }, [handleChatbotInteractionEnd]);
 
+  const fetchChatbotRecipe = useCallback(async () => {
+    if (!user?.id) {
+      setChatbotRecipe({
+        loading: false,
+        data: null,
+        error: "Sign in to get personalised recipe ideas.",
+      });
+      return;
+    }
+
+    setChatbotRecipe({ loading: true, data: null, error: null });
+    try {
+      const response = await fetch("/api/recipes/suggest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sellerId: user.id, maxIngredients: 8 }),
+      });
+      const data = await response.json();
+      if (!response.ok || !data?.recipe) {
+        throw new Error(data?.error ?? "Unable to find a recipe right now.");
+      }
+      setChatbotRecipe({ loading: false, data: data.recipe, error: null });
+    } catch (error) {
+      setChatbotRecipe({
+        loading: false,
+        data: null,
+        error: error.message ?? "Unable to fetch a recipe right now.",
+      });
+    }
+  }, [user?.id]);
+
   const handleChatbotNo = useCallback(() => {
-    handleChatbotInteractionEnd();
-  }, [handleChatbotInteractionEnd]);
+    setChatbotState("speaking");
+    fetchChatbotRecipe();
+  }, [fetchChatbotRecipe]);
 
   const handleIngredientPopupClose = useCallback(() => {
     setIngredientPopupOpen(false);
@@ -1776,23 +1809,56 @@ export default function Homepage() {
                             className="chatbot-bubble-image"
                         />
                         <div className="chatbot-bubble-content">
-                            <p className="chatbot-bubble-text">Have you eaten today?</p>
-                            <div className="chatbot-bubble-buttons">
-                                <button
-                                    type="button"
-                                    className="chatbot-bubble-button"
-                                    onClick={handleChatbotYes}
-                                >
-                                    Yes
-                                </button>
-                                <button
-                                    type="button"
-                                    className="chatbot-bubble-button"
-                                    onClick={handleChatbotNo}
-                                >
-                                    No
-                                </button>
-                            </div>
+                            {chatbotRecipe.loading ? (
+                                <p className="chatbot-recipe-loading">Mixing up a recipe from your pantry…</p>
+                            ) : chatbotRecipe.data ? (
+                                <div className="chatbot-recipe">
+                                    <p className="chatbot-recipe-label">Pantry inspo</p>
+                                    <p className="chatbot-recipe-title">
+                                        {chatbotRecipe.data.title ?? "Pantry inspiration"}
+                                    </p>
+                                    <a
+                                        href={chatbotRecipe.data.url}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="chatbot-recipe-link"
+                                    >
+                                        Open recipe
+                                    </a>
+                                    <div className="chatbot-bubble-buttons">
+                                        <button
+                                            type="button"
+                                            className="chatbot-bubble-button"
+                                            onClick={fetchChatbotRecipe}
+                                        >
+                                            New idea
+                                        </button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <>
+                                    {chatbotRecipe.error && (
+                                        <p className="chatbot-recipe-error">{chatbotRecipe.error}</p>
+                                    )}
+                                    <p className="chatbot-bubble-text">Have you eaten today?</p>
+                                    <div className="chatbot-bubble-buttons">
+                                        <button
+                                            type="button"
+                                            className="chatbot-bubble-button"
+                                            onClick={handleChatbotYes}
+                                        >
+                                            Yes
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className="chatbot-bubble-button"
+                                            onClick={handleChatbotNo}
+                                        >
+                                            No
+                                        </button>
+                                    </div>
+                                </>
+                            )}
                         </div>
                     </div>
                 )}
