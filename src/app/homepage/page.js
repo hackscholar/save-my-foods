@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { createClient as createSupabaseBrowserClient } from "@/utils/supabase/client";
+import IngredientPopup from "../components/ingedientspopup";
 import "./homepage.css";
 
 const CHATBOT_IMAGES = {
@@ -172,6 +173,7 @@ export default function Homepage() {
   });
   const [notificationToast, setNotificationToast] = useState(null);
   const [chatbotState, setChatbotState] = useState("idle");
+  const [isIngredientPopupOpen, setIngredientPopupOpen] = useState(false);
 
   useEffect(() => {
     const timer = setTimeout(() => setHasEntered(true), 3000);
@@ -241,6 +243,13 @@ export default function Homepage() {
       setMarketState({ loading: false, error: error.message });
     }
   }, []);
+
+  const refreshItems = useCallback(() => {
+    if (user?.id) {
+      fetchInventoryItems();
+    }
+    fetchMarketplaceItems();
+  }, [user?.id, fetchInventoryItems, fetchMarketplaceItems]);
 
   const handleChatbotInteractionStart = useCallback(() => {
     if (chatbotTimerRef.current) {
@@ -341,6 +350,86 @@ export default function Homepage() {
     }
   }
 
+  const handleChatbotYes = useCallback(() => {
+    handleChatbotInteractionEnd();
+    setIngredientPopupOpen(true);
+  }, [handleChatbotInteractionEnd]);
+
+  const handleChatbotNo = useCallback(() => {
+    handleChatbotInteractionEnd();
+  }, [handleChatbotInteractionEnd]);
+
+  const handleIngredientPopupClose = useCallback(() => {
+    setIngredientPopupOpen(false);
+  }, []);
+
+  const handleChatbotFocusOut = useCallback(
+    (event) => {
+      if (!event.currentTarget.contains(event.relatedTarget)) {
+        handleChatbotInteractionEnd();
+      }
+    },
+    [handleChatbotInteractionEnd],
+  );
+
+  const handleIngredientConfirm = useCallback(
+    async (entries = []) => {
+      if (!user?.id) {
+        throw new Error("You must be signed in to update your groceries.");
+      }
+
+      const inventoryById = items.reduce((acc, item) => {
+        if (item.type !== "marketplace") {
+          acc[item.id] = item;
+        }
+        return acc;
+      }, {});
+
+      const actionable = entries
+        .map((entry) => ({
+          itemId: entry.itemId,
+          quantity: Number(entry.quantity),
+        }))
+        .filter(
+          (entry) =>
+            entry.itemId && entry.quantity !== null && !Number.isNaN(entry.quantity) && entry.quantity > 0,
+        );
+
+      if (actionable.length === 0) {
+        setIngredientPopupOpen(false);
+        return;
+      }
+
+      for (const entry of actionable) {
+        const currentItem = inventoryById[entry.itemId];
+        if (!currentItem) continue;
+        const currentQuantity = Number(currentItem.quantity ?? 0);
+        if (Number.isNaN(currentQuantity) || currentQuantity <= 0) continue;
+
+        const decrement = Math.min(currentQuantity, Math.max(0, Math.round(entry.quantity)));
+        if (decrement <= 0) continue;
+        const nextQuantity = Math.max(0, currentQuantity - decrement);
+
+        const response = await fetch("/api/items", {
+          method: nextQuantity > 0 ? "PATCH" : "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body:
+            nextQuantity > 0
+              ? JSON.stringify({ id: currentItem.id, quantity: nextQuantity })
+              : JSON.stringify({ id: currentItem.id }),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(data?.error ?? "Failed to update your groceries.");
+        }
+      }
+
+      refreshItems();
+      setIngredientPopupOpen(false);
+    },
+    [items, refreshItems, user?.id],
+  );
+
   useEffect(() => {
     if (!user?.id) return;
     fetchInventoryItems();
@@ -412,13 +501,6 @@ export default function Homepage() {
     const timer = setTimeout(() => setNotificationToast(null), 5000);
     return () => clearTimeout(timer);
   }, [notificationToast]);
-
-  function refreshItems() {
-    if (user?.id) {
-      fetchInventoryItems();
-    }
-    fetchMarketplaceItems();
-  }
 
   function openNewItemModal() {
     setNewItem(createEmptyForm());
@@ -1425,6 +1507,7 @@ export default function Homepage() {
                 className="chatbot-container"
                 onMouseEnter={handleChatbotInteractionStart}
                 onMouseLeave={handleChatbotInteractionEnd}
+                onBlurCapture={handleChatbotFocusOut}
             >
                 {chatbotState === "speaking" && (
                     <div className="chatbot-bubble" aria-live="polite">
@@ -1435,14 +1518,31 @@ export default function Homepage() {
                             height={180}
                             className="chatbot-bubble-image"
                         />
-                        <span className="chatbot-bubble-text" aria-hidden="true" />
+                        <div className="chatbot-bubble-content">
+                            <p className="chatbot-bubble-text">Have you eaten today?</p>
+                            <div className="chatbot-bubble-buttons">
+                                <button
+                                    type="button"
+                                    className="chatbot-bubble-button"
+                                    onClick={handleChatbotYes}
+                                >
+                                    Yes
+                                </button>
+                                <button
+                                    type="button"
+                                    className="chatbot-bubble-button"
+                                    onClick={handleChatbotNo}
+                                >
+                                    No
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 )}
                 <button
                     type="button"
                     className="chatbot-trigger"
                     onFocus={handleChatbotInteractionStart}
-                    onBlur={handleChatbotInteractionEnd}
                     aria-label="Open SaveMyFoods chatbot"
                 >
                     <Image
@@ -1454,6 +1554,12 @@ export default function Homepage() {
                     />
                 </button>
             </div>
+            <IngredientPopup
+                isOpen={isIngredientPopupOpen}
+                onClose={handleIngredientPopupClose}
+                onConfirm={handleIngredientConfirm}
+                sellerId={user?.id ?? null}
+            />
             {isModalOpen && (
                 <div className="modal-overlay" role="dialog" aria-modal="true">
                     <div className="modal">

@@ -346,10 +346,16 @@ body {
 }
 
 /* Ingredients centered nicely */
+.ingredients-message {
+  margin: 0.5rem 0;
+  font-size: 0.9rem;
+  color: #475467;
+}
+
 .ingredients-list {
   margin-top: 1rem;
   margin-bottom: 0.8rem;
-  text-align: center;
+  text-align: left;
 }
 
 .ingredients-title {
@@ -360,21 +366,40 @@ body {
 
 .ingredient-row {
   display: flex;
-  justify-content: center;
+  justify-content: space-between;
   align-items: center;
   gap: 0.7rem;
-  margin-bottom: 0.4rem;
+  margin-bottom: 0.6rem;
+}
+
+.ingredient-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
+  max-width: 220px;
 }
 
 .ingredient-label {
-  min-width: 120px;
-  text-align: right;
-  font-size: 0.9rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.ingredient-hint {
+  font-size: 0.75rem;
+  color: #64748b;
+}
+
+.ingredient-available {
+  font-size: 0.78rem;
+  color: #1d8a5c;
+  font-weight: 600;
 }
 
 .ingredient-input {
-  width: 70px;
-  padding: 0.3rem 0.5rem;
+  width: 80px;
+  padding: 0.35rem 0.5rem;
   border-radius: 8px;
   border: 1px solid var(--border-soft);
   background: #fbf8f1;
