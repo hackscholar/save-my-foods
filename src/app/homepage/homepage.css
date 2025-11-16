@@ -502,7 +502,7 @@
     pointer-events: none;
 }
 
-.grocery-card__overlay button {
+.grocery-card__overlay-button {
     border: none;
     border-radius: 999px;
     padding: 0.45rem 0.9rem;
@@ -510,6 +510,11 @@
     color: #111827;
     font-weight: 600;
     cursor: pointer;
+}
+
+.grocery-card__overlay-button--danger {
+    background: #fee2e2;
+    color: #b91c1c;
 }
 
 .grocery-card:hover .grocery-card__overlay {

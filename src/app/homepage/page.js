@@ -22,6 +22,14 @@ function createEmptyForm() {
   };
 }
 
+function sortByExpiry(items = []) {
+  return [...items].sort((a, b) => {
+    const dateA = a?.expiryDate ? new Date(a.expiryDate).getTime() : Infinity;
+    const dateB = b?.expiryDate ? new Date(b.expiryDate).getTime() : Infinity;
+    return dateA - dateB;
+  });
+}
+
 export default function Homepage() {
   const router = useRouter();
   const profileMenuRef = useRef(null);
@@ -38,6 +46,7 @@ export default function Homepage() {
   const [editingItem, setEditingItem] = useState(null);
   const [createState, setCreateState] = useState({ loading: false, error: null });
   const [deleteState, setDeleteState] = useState({ loading: false, error: null });
+  const [unlistState, setUnlistState] = useState({ loadingId: null, error: null });
   const [uploadState, setUploadState] = useState({ uploading: false, error: null });
   const [enrichState, setEnrichState] = useState({ loading: false, error: null });
   const [sellDialog, setSellDialog] = useState({
@@ -229,6 +238,26 @@ export default function Homepage() {
       setDeleteState({ loading: false, error: error.message });
     }
   }
+
+  async function handleUnlistItem(item) {
+    if (!item?.id) return;
+    setUnlistState({ loadingId: item.id, error: null });
+    try {
+      const response = await fetch("/api/items", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: item.id, type: "inventory", price: null }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data?.error ?? "Unable to unlist item.");
+      }
+      setUnlistState({ loadingId: null, error: null });
+      refreshItems();
+    } catch (error) {
+      setUnlistState({ loadingId: null, error: error.message });
+    }
+  }
   async function handleImageUpload(event) {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -388,8 +417,8 @@ export default function Homepage() {
     }
   }
 
-  const inventoryItems = items.filter((item) => item.type !== "marketplace");
-  const marketplaceItems = marketItems;
+  const inventoryItems = sortByExpiry(items.filter((item) => item.type !== "marketplace"));
+  const marketplaceItems = sortByExpiry(marketItems);
   const canManageItem = (item) => item?.sellerId === user?.id;
 
   return (
@@ -546,6 +575,7 @@ export default function Homepage() {
                                                         <div className="grocery-card__overlay">
                                                             <button
                                                                 type="button"
+                                                                className="grocery-card__overlay-button"
                                                                 onClick={(e) => {
                                                                     e.preventDefault();
                                                                     e.stopPropagation();
@@ -557,6 +587,7 @@ export default function Homepage() {
                                                             {item.type !== "marketplace" && (
                                                                 <button
                                                                     type="button"
+                                                                    className="grocery-card__overlay-button"
                                                                     onClick={(e) => {
                                                                         e.preventDefault();
                                                                         e.stopPropagation();
@@ -636,6 +667,9 @@ export default function Homepage() {
                                         {marketState.error && (
                                             <p className="helper-text error">{marketState.error}</p>
                                         )}
+                                        {unlistState.error && (
+                                            <p className="helper-text error">{unlistState.error}</p>
+                                        )}
                                         <div className="groceries-grid">
                                             {marketplaceItems.map((item) => (
                                                 <article className="grocery-card" key={`${item.id}-market`}>
@@ -643,6 +677,7 @@ export default function Homepage() {
                                                         <div className="grocery-card__overlay">
                                                             <button
                                                                 type="button"
+                                                                className="grocery-card__overlay-button"
                                                                 onClick={(e) => {
                                                                     e.preventDefault();
                                                                     e.stopPropagation();
@@ -651,7 +686,21 @@ export default function Homepage() {
                                                             >
                                                                 Edit
                                                             </button>
-                                                        </div>
+                                                            <button
+                                                                type="button"
+                                                                className="grocery-card__overlay-button grocery-card__overlay-button--danger"
+                                                                onClick={(e) => {
+                                                                    e.preventDefault();
+                                                                    e.stopPropagation();
+                                                                    handleUnlistItem(item);
+                                                                }}
+                                                                disabled={unlistState.loadingId === item.id}
+                                                            >
+                                                                {unlistState.loadingId === item.id
+                                                                    ? "Unlisting…"
+                                                                    : "Unlist"}
+                                                            </button>
+                                                    </div>
                                                     )}
                                                     <div className="grocery-card__image-wrap">
                                                         {item.imagePath ? (
