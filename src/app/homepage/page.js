@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import "./homepage.css";
 
@@ -8,10 +8,14 @@ export default function Homepage() {
     const [hasEntered, setHasEntered] = useState(false);
     const [activeTab, setActiveTab] = useState("my-groceries"); // "my-groceries" | "local-marketplace"
 
-    const handleEnter = () => {
-        if (hasEntered) return;
-        setHasEntered(true);
-    };
+    // Auto-enter after 3 seconds
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setHasEntered(true);
+        }, 3000); // 3 seconds
+
+        return () => clearTimeout(timer);
+    }, []);
 
     return (
         <main className="homepage-root">
@@ -19,7 +23,6 @@ export default function Homepage() {
             <div
                 className={`intro-overlay ${hasEntered ? "intro-overlay--fade-out" : ""
                     }`}
-                onClick={handleEnter}
             >
                 <div className="intro-content">
                     <h1 className="intro-title hover-grow">SaveMyFoods</h1>
@@ -30,8 +33,9 @@ export default function Homepage() {
                         </span>
                     </p>
 
+                    {/* You can keep or delete this hint text; it no longer controls anything */}
                     <p className="intro-hint hover-grow-small">
-                        Click anywhere to enter
+                        Welcome in!
                     </p>
                 </div>
             </div>
