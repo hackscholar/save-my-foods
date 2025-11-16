@@ -9,8 +9,8 @@ export default function Home() {
             <Image
                 src="/headericon.png"
                 alt="SaveMyFoods logo"
-                width={60}
-                height={60}
+                width={350}
+                height={150}
                 className="logo"
             />
           </div>

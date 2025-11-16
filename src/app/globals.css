@@ -3,8 +3,8 @@
   --card-bg: #ffffff;
   --border-soft: #e3ded2;
   --text-main: #222222;
-  --accent: #2f855a;
-  --accent-soft: #e3f3ea;
+  --accent: #8BC541;
+  --accent-soft: #DDF4B4;
   --radius-lg: 18px;
   --shadow-soft: 0 4px 16px rgba(0, 0, 0, 0.08);
 }
@@ -85,6 +85,7 @@ body {
   margin: 0.4rem 0 0;
   font-size: 0.9rem;
   opacity: 0.8;
+  text-align: center;
 }
 
 /* Form */
