@@ -1,13 +1,32 @@
+"use client";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 
 export default function Home() {
+    const router = useRouter();
+
+    function handleLogin(e) {
+    e.preventDefault();          // stop form from reloading the page
+    // TODO: add real auth later
+    router.push("/homepage");    // go to homepage
+  }
+
+  function handleGuest() {
+    router.push("/homepage");    // same for guest
+  }
+
+  function handleSignupClick(e) {
+    e.preventDefault();
+    router.push("/signup");      // go to signup page
+  }
+
   return (
     <div className="login-page">
       <div className="login-card">
         <div className="brand-lockup">
-          <div className="brand-name">
+            <div className="brand-name">
             <Image
-                src="/headericon.png"
+                src="/headericon.PNG"
                 alt="SaveMyFoods logo"
                 width={350}
                 height={150}
@@ -19,7 +38,7 @@ export default function Home() {
           </p>
         </div>
 
-        <form className="login-form">
+        <form className="login-form" onSubmit={handleLogin}>
           <label className="field">
             <span>Email</span>
             <input
@@ -44,12 +63,12 @@ export default function Home() {
             Log in
           </button>
 
-          <button type="button" className="secondary-button wide">
+          <button type="button" className="secondary-button wide" onClick={handleGuest}>
             Continue as guest
           </button>
 
           <p className="helper-text">
-            Don’t have an account? <a href="#">Sign up</a>
+            Don’t have an account? <a href="#" onClick={handleSignupClick}>Sign up</a>
           </p>
         </form>
       </div>
