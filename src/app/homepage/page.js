@@ -278,7 +278,6 @@ export default function Homepage() {
       clearTimeout(chatbotTimerRef.current);
       chatbotTimerRef.current = null;
     }
-    setChatbotRecipe(INITIAL_CHATBOT_RECIPE);
 
     setChatbotState((previous) => {
       if (previous === "speaking") {
@@ -297,33 +296,29 @@ export default function Homepage() {
       clearTimeout(chatbotTimerRef.current);
       chatbotTimerRef.current = null;
     }
-    setChatbotRecipe(INITIAL_CHATBOT_RECIPE);
     setChatbotState("idle");
   }, []);
 
-  const fetchNotificationsList = useCallback(
-    async (limit = 50) => {
-      if (!user?.id) return;
-      setNotificationsState({ loading: true, error: null });
-      try {
-        const response = await fetch(
-          `/api/notifications?userId=${user.id}&limit=${limit}`,
-        );
-        const data = await response.json();
-        if (!response.ok) {
-          throw new Error(data?.error ?? "Failed to load notifications.");
-        }
-        const next = Array.isArray(data.notifications)
-          ? data.notifications.map(formatNotification).filter(Boolean)
-          : [];
-        setNotifications(next);
-        setNotificationsState({ loading: false, error: null });
-      } catch (error) {
-        setNotificationsState({ loading: false, error: error.message });
+  async function fetchNotificationsList(limit = 50) {
+    if (!user?.id) return;
+    setNotificationsState({ loading: true, error: null });
+    try {
+      const response = await fetch(
+        `/api/notifications?userId=${user.id}&limit=${limit}`,
+      );
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data?.error ?? "Failed to load notifications.");
       }
-    },
-    [user?.id],
-  );
+      const next = Array.isArray(data.notifications)
+        ? data.notifications.map(formatNotification).filter(Boolean)
+        : [];
+      setNotifications(next);
+      setNotificationsState({ loading: false, error: null });
+    } catch (error) {
+      setNotificationsState({ loading: false, error: error.message });
+    }
+  }
 
   function handleNotificationsToggle() {
     if (!user) return;
@@ -377,52 +372,14 @@ export default function Homepage() {
     }
   }
 
-  const requestRecipeSuggestion = useCallback(async () => {
-    if (!user?.id) {
-      setChatbotRecipe({
-        loading: false,
-        data: null,
-        error: "Sign in to get personalized recipe ideas.",
-      });
-      return;
-    }
-    setChatbotRecipe({ loading: true, data: null, error: null });
-    try {
-      const response = await fetch("/api/recipes/suggest", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sellerId: user.id }),
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data?.error ?? "Unable to suggest a recipe right now.");
-      }
-      if (!data.recipe) {
-        throw new Error("No recipe ideas available.");
-      }
-      setChatbotRecipe({ loading: false, data: data.recipe, error: null });
-    } catch (error) {
-      setChatbotRecipe({
-        loading: false,
-        data: null,
-        error: error.message ?? "Unable to suggest a recipe right now.",
-      });
-    }
-  }, [user?.id]);
-
   const handleChatbotYes = useCallback(() => {
     handleChatbotInteractionEnd();
     setIngredientPopupOpen(true);
   }, [handleChatbotInteractionEnd]);
 
   const handleChatbotNo = useCallback(() => {
-    if (chatbotTimerRef.current) {
-      clearTimeout(chatbotTimerRef.current);
-      chatbotTimerRef.current = null;
-    }
-    setChatbotState("speaking");
-    requestRecipeSuggestion();
-  }, [requestRecipeSuggestion]);
+    handleChatbotInteractionEnd();
+  }, [handleChatbotInteractionEnd]);
 
   const handleIngredientPopupClose = useCallback(() => {
     setIngredientPopupOpen(false);
@@ -505,6 +462,57 @@ export default function Homepage() {
   }, [fetchMarketplaceItems]);
 
   useEffect(() => {
+    setCartItems((prev) => {
+      let changed = false;
+      const next = prev
+        .map((item) => {
+          const latest = marketItems.find((marketItem) => marketItem.id === item.id);
+          if (!latest) {
+            changed = true;
+            return null;
+          }
+          const available = Number(latest.quantity ?? 0);
+          if (!Number.isFinite(available) || available <= 0) {
+            changed = true;
+            return null;
+          }
+          const max = Math.max(1, Math.floor(available));
+          const clampedQuantity = clampQuantity(item.quantity, max);
+          if (clampedQuantity !== item.quantity || max !== item.availableQuantity) {
+            changed = true;
+          }
+          return {
+            ...item,
+            quantity: clampedQuantity,
+            availableQuantity: max,
+          };
+        })
+        .filter(Boolean);
+      return changed ? next : prev;
+    });
+  }, [marketItems]);
+
+  useEffect(() => {
+    setCartSelections((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      Object.entries(prev).forEach(([itemId, value]) => {
+        const latest = marketItems.find((item) => item.id === itemId);
+        if (!latest) {
+          return;
+        }
+        const max = Math.max(1, Number(latest.quantity ?? 1));
+        const clamped = clampQuantity(value, max);
+        if (clamped !== value) {
+          next[itemId] = clamped;
+          changed = true;
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, [marketItems]);
+
+  useEffect(() => {
     return () => {
       if (chatbotTimerRef.current) {
         clearTimeout(chatbotTimerRef.current);
@@ -518,7 +526,7 @@ export default function Homepage() {
       return;
     }
     fetchNotificationsList();
-  }, [user?.id, fetchNotificationsList]);
+  }, [user?.id]);
 
   useEffect(() => {
     if (!user) {
@@ -865,10 +873,26 @@ export default function Homepage() {
   ).length;
   function addToCart(item) {
     if (!item || item.sellerId === user?.id) return;
+    const available = Math.max(1, Math.floor(Number(item.quantity ?? 1)));
+    const desired = clampQuantity(cartSelections[item.id] ?? 1, available);
     setCartItems((prev) => {
       if (prev.some((entry) => entry.id === item.id)) return prev;
-      return [...prev, { id: item.id, name: item.name, price: item.price, sellerId: item.sellerId }];
+      return [
+        ...prev,
+        {
+          id: item.id,
+          name: item.name,
+          price: item.price,
+          sellerId: item.sellerId,
+          quantity: desired,
+          availableQuantity: available,
+        },
+      ];
     });
+    setCartSelections((prev) => ({
+      ...prev,
+      [item.id]: desired,
+    }));
     setCartState({ loading: false, error: null, success: null });
   }
 
@@ -889,6 +913,7 @@ export default function Homepage() {
           body: JSON.stringify({
             itemId: item.id,
             buyerId: user.id,
+            quantity: item.quantity ?? 1,
           }),
         }).catch((error) => {
           console.error("Failed to notify seller for item", item.id, error);
@@ -985,10 +1010,13 @@ export default function Homepage() {
   }
   const categoryShortcuts = [
     { label: "All", filter: null },
-    ...ITEM_CATEGORY_OPTIONS.map((option) => ({
-      label: option.label,
-      filter: option.id,
-    })),
+    { label: "Produce", filter: "produce" },
+    { label: "Bakery", filter: "bakery" },
+    { label: "Meat & Seafood", filter: "meat" },
+    { label: "Dairy & Eggs", filter: "dairy" },
+    { label: "Pantry", filter: "pantry" },
+    { label: "Snacks", filter: "snacks" },
+    { label: "Frozen", filter: "frozen" },
   ];
   const chatbotImageSrc = CHATBOT_IMAGES[chatbotState] ?? CHATBOT_IMAGES.idle;
 
@@ -1091,7 +1119,7 @@ export default function Homepage() {
                                             <p className="notification-empty">Loading alerts...</p>
                                         ) : notifications.length === 0 ? (
                                             <p className="notification-empty">
-                                                You&apos;re all caught up.
+                                                You're all caught up.
                                             </p>
                                         ) : (
                                             <ul className="notification-list">
@@ -1193,28 +1221,47 @@ export default function Homepage() {
                                         .filter((item) => item.sellerId === user?.id)
                                         .map((item) => (
                                             <li key={`sell-${item.id}`} className="selling-item">
-                                                <div className="selling-item__thumb">
-                                                    {item.imagePath ? (
-                                                        <Image
-                                                            src={item.imagePath}
-                                                            alt={item.name}
-                                                            width={48}
-                                                            height={48}
-                                                        />
-                                                    ) : (
-                                                        <span>No image</span>
-                                                    )}
-                                                </div>
-                                                <div className="selling-item__info">
-                                                    <strong>{item.name}</strong>
-                                                    <span>
-                                                        {item.price !== null && item.price !== undefined
-                                                            ? ` • $${Number(item.price).toFixed(2)}`
-                                                            : ""}
-                                                    </span>
-                                                    <div className="selling-meta">
-                                                        Qty: {item.quantity ?? 0}
+                                                <div className="selling-item__content">
+                                                    <div className="selling-item__thumb">
+                                                        {item.imagePath ? (
+                                                            <Image
+                                                                src={item.imagePath}
+                                                                alt={item.name}
+                                                                width={48}
+                                                                height={48}
+                                                            />
+                                                        ) : (
+                                                            <span>No image</span>
+                                                        )}
                                                     </div>
+                                                    <div className="selling-item__info">
+                                                        <strong>{item.name}</strong>
+                                                        <span>
+                                                            {item.price !== null && item.price !== undefined
+                                                                ? ` • $${Number(item.price).toFixed(2)}`
+                                                                : ""}
+                                                        </span>
+                                                        <div className="selling-meta">
+                                                            Qty: {item.quantity ?? 0}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div className="selling-item__actions">
+                                                    <button
+                                                        type="button"
+                                                        className="selling-action-button"
+                                                        onClick={() => handleEditItem(item)}
+                                                    >
+                                                        Edit
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        className="selling-action-button selling-action-button--danger"
+                                                        onClick={() => handleUnlistItem(item)}
+                                                        disabled={unlistState.loadingId === item.id}
+                                                    >
+                                                        {unlistState.loadingId === item.id ? "Unlisting…" : "Unlist"}
+                                                    </button>
                                                 </div>
                                             </li>
                                         ))}
@@ -1227,24 +1274,49 @@ export default function Homepage() {
                                     <p className="selling-empty">No items yet.</p>
                                 ) : (
                                     <ul className="cart-list">
-                                        {cartItems.map((item) => (
-                                            <li key={`cart-${item.id}`}>
-                                                <span>{item.name}</span>
-                                                <div>
-                                                    <span>
-                                                        {item.price !== null && item.price !== undefined
-                                                            ? `$${Number(item.price).toFixed(2)}`
-                                                            : "$0.00"}
-                                                    </span>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => removeFromCart(item.id)}
-                                                    >
-                                                        remove
-                                                    </button>
-                                                </div>
-                                            </li>
-                                        ))}
+                                        {cartItems.map((item) => {
+                                            const quantityInputId = `cart-qty-${item.id}`;
+                                            const available = getAvailableQuantity(item.id) ?? item.availableQuantity ?? item.quantity ?? 1;
+                                            const maxQuantity = Math.max(1, Math.floor(Number(available)));
+                                            return (
+                                                <li key={`cart-${item.id}`}>
+                                                    <div className="cart-item-row">
+                                                        <div>
+                                                            <span className="cart-item-name">{item.name}</span>
+                                                            <span className="cart-item-price">
+                                                                {item.price !== null && item.price !== undefined
+                                                                    ? `$${Number(item.price).toFixed(2)}`
+                                                                    : "$0.00"}
+                                                            </span>
+                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => removeFromCart(item.id)}
+                                                        >
+                                                            remove
+                                                        </button>
+                                                    </div>
+                                                    <div className="cart-item-controls">
+                                                        <label htmlFor={quantityInputId} className="cart-quantity-control">
+                                                            <span>Qty</span>
+                                                            <input
+                                                                id={quantityInputId}
+                                                                type="number"
+                                                                min={1}
+                                                                max={maxQuantity}
+                                                                value={item.quantity ?? 1}
+                                                                onChange={(event) =>
+                                                                    handleCartQuantityChange(item.id, event.target.value)
+                                                                }
+                                                            />
+                                                        </label>
+                                                        <span className="cart-item-available">
+                                                            {maxQuantity} available
+                                                        </span>
+                                                    </div>
+                                                </li>
+                                            );
+                                        })}
                                     </ul>
                                 )}
                                 {cartState.error && (
@@ -1391,7 +1463,22 @@ export default function Homepage() {
                                                             )}
                                                         </div>
                                                     ) : (
-                                                        <div className="grocery-card__overlay">
+                                                        <div className="grocery-card__overlay grocery-card__overlay--purchase">
+                                                            <label htmlFor={quantityInputId} className="quantity-selector">
+                                                                <span>Qty</span>
+                                                                <input
+                                                                    id={quantityInputId}
+                                                                    type="number"
+                                                                    min={1}
+                                                                    max={maxSelectable}
+                                                                    value={selectionValue}
+                                                                    onChange={(event) =>
+                                                                        handleSelectionChange(item.id, event.target.value, maxSelectable)
+                                                                    }
+                                                                    disabled={outOfStock || isInCart(item.id)}
+                                                                />
+                                                                <small>of {maxSelectable}</small>
+                                                            </label>
                                                             <button
                                                                 type="button"
                                                                 className={`grocery-card__overlay-button ${isInCart(item.id) ? "grocery-card__overlay-button--disabled" : ""}`}
@@ -1400,9 +1487,9 @@ export default function Homepage() {
                                                                     e.stopPropagation();
                                                                     addToCart(item);
                                                                 }}
-                                                                disabled={isInCart(item.id)}
+                                                                disabled={isInCart(item.id) || outOfStock}
                                                             >
-                                                                {isInCart(item.id) ? "In cart" : "Add to cart"}
+                                                                {outOfStock ? "Sold out" : isInCart(item.id) ? "In cart" : "Add to cart"}
                                                             </button>
                                                         </div>
                                                     )}
@@ -1447,7 +1534,7 @@ export default function Homepage() {
                                                         </dl>
                                                     </div>
                                                 </article>
-                                            ))}
+                                                    )) }
                                             <button
                                                 type="button"
                                                 className="grocery-card grocery-card--add"
@@ -1531,7 +1618,24 @@ export default function Homepage() {
                                             <p className="helper-text error">{unlistState.error}</p>
                                         )}
                                         <div className="groceries-grid">
-                                            {marketplaceItems.map((item) => (
+                                            {marketplaceItems
+                                                .filter((item) => {
+                                                    if (!selectedCategory) return true;
+                                                    if (selectedCategory === "produce") return item.name?.toLowerCase().includes("tomato") || item.name?.toLowerCase().includes("banana") || item.name?.toLowerCase().includes("carrot");
+                                                    if (selectedCategory === "bakery") return item.name?.toLowerCase().includes("bread");
+                                                    if (selectedCategory === "meat") return item.name?.toLowerCase().includes("chicken");
+                                                    if (selectedCategory === "dairy") return item.name?.toLowerCase().includes("milk") || item.name?.toLowerCase().includes("cheese");
+                                                    if (selectedCategory === "pantry") return item.name?.toLowerCase().includes("rice");
+                                                    if (selectedCategory === "snacks") return item.name?.toLowerCase().includes("chips");
+                                                    if (selectedCategory === "frozen") return item.name?.toLowerCase().includes("frozen");
+                                                    return true;
+                                                })
+                                                .map((item) => {
+                                                    const outOfStock = Number(item.quantity ?? 0) <= 0;
+                                                    const quantityInputId = `marketplace-qty-${item.id}`;
+                                                    const maxSelectable = Math.max(1, Math.floor(Number(item.quantity ?? 1)));
+                                                    const selectionValue = cartSelections[item.id] ?? 1;
+                                                    return (
                                                 <article
                                                     className={`grocery-card ${item.sellerId !== user?.id ? "is-other" : ""}`}
                                                     key={`${item.id}-market`}
@@ -1617,7 +1721,10 @@ export default function Homepage() {
                                                         </dl>
                                                     </div>
                                                 </article>
-                                            ))}
+                                                    );
+                                                })}
+                                        </div>
+                                        <div className="groceries-grid">
                                         </div>
                                         <div className="groceries-grid">
                                         </div>
@@ -1650,51 +1757,23 @@ export default function Homepage() {
                             className="chatbot-bubble-image"
                         />
                         <div className="chatbot-bubble-content">
-                            {chatbotRecipe.data ? (
-                                <div className="chatbot-recipe">
-                                    <p className="chatbot-recipe-label">Dinner inspo</p>
-                                    <p className="chatbot-recipe-title">
-                                        {chatbotRecipe.data.title ?? "Pantry inspiration"}
-                                    </p>
-                                    <a
-                                        href={chatbotRecipe.data.url}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        className="chatbot-recipe-link"
-                                    >
-                                        View recipe online
-                                    </a>
-                                </div>
-                            ) : (
-                                <>
-                                    <p className="chatbot-bubble-text">Have you eaten today?</p>
-                                    {chatbotRecipe.error && (
-                                        <p className="chatbot-recipe-error">{chatbotRecipe.error}</p>
-                                    )}
-                                    {chatbotRecipe.loading ? (
-                                        <p className="chatbot-recipe-loading">
-                                            Stirring together a recipe from your groceries…
-                                        </p>
-                                    ) : (
-                                        <div className="chatbot-bubble-buttons">
-                                            <button
-                                                type="button"
-                                                className="chatbot-bubble-button"
-                                                onClick={handleChatbotYes}
-                                            >
-                                                Yes
-                                            </button>
-                                            <button
-                                                type="button"
-                                                className="chatbot-bubble-button"
-                                                onClick={handleChatbotNo}
-                                            >
-                                                No
-                                            </button>
-                                        </div>
-                                    )}
-                                </>
-                            )}
+                            <p className="chatbot-bubble-text">Have you eaten today?</p>
+                            <div className="chatbot-bubble-buttons">
+                                <button
+                                    type="button"
+                                    className="chatbot-bubble-button"
+                                    onClick={handleChatbotYes}
+                                >
+                                    Yes
+                                </button>
+                                <button
+                                    type="button"
+                                    className="chatbot-bubble-button"
+                                    onClick={handleChatbotNo}
+                                >
+                                    No
+                                </button>
+                            </div>
                         </div>
                     </div>
                 )}
