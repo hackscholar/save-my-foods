@@ -12,6 +12,51 @@ function toDateInput(value) {
   return date.toISOString().slice(0, 10);
 }
 
+const SORTERS = {
+  expiry: (a, b) => {
+    const dateA = a?.expiryDate ? new Date(a.expiryDate).getTime() : Infinity;
+    const dateB = b?.expiryDate ? new Date(b.expiryDate).getTime() : Infinity;
+    return dateA - dateB;
+  },
+  expiryLatest: (a, b) => {
+    const dateA = a?.expiryDate ? new Date(a.expiryDate).getTime() : -Infinity;
+    const dateB = b?.expiryDate ? new Date(b.expiryDate).getTime() : -Infinity;
+    return dateB - dateA;
+  },
+  quantity: (a, b) => {
+    const qtyA = a?.quantity ?? Infinity;
+    const qtyB = b?.quantity ?? Infinity;
+    return qtyA - qtyB;
+  },
+  quantityHigh: (a, b) => {
+    const qtyA = a?.quantity ?? -Infinity;
+    const qtyB = b?.quantity ?? -Infinity;
+    return qtyB - qtyA;
+  },
+  priceLow: (a, b) => {
+    const priceA =
+      a?.price !== null && a?.price !== undefined
+        ? Number(a.price)
+        : Infinity;
+    const priceB =
+      b?.price !== null && b?.price !== undefined
+        ? Number(b.price)
+        : Infinity;
+    return priceA - priceB;
+  },
+  priceHigh: (a, b) => {
+    const priceA =
+      a?.price !== null && a?.price !== undefined
+        ? Number(a.price)
+        : -Infinity;
+    const priceB =
+      b?.price !== null && b?.price !== undefined
+        ? Number(b.price)
+        : -Infinity;
+    return priceB - priceA;
+  },
+};
+
 function createEmptyForm() {
   return {
     name: "",
@@ -22,12 +67,19 @@ function createEmptyForm() {
   };
 }
 
-function sortByExpiry(items = []) {
-  return [...items].sort((a, b) => {
-    const dateA = a?.expiryDate ? new Date(a.expiryDate).getTime() : Infinity;
-    const dateB = b?.expiryDate ? new Date(b.expiryDate).getTime() : Infinity;
-    return dateA - dateB;
-  });
+function sortItems(items = [], sortKey = "expiry") {
+  const sorter = SORTERS[sortKey] ?? SORTERS.expiry;
+  return [...items].sort(sorter);
+}
+
+function applyFilters(items = [], filters) {
+  const query = filters.search.trim().toLowerCase();
+  const filtered = query
+    ? items.filter((item) =>
+        (item.name ?? "").toLowerCase().includes(query),
+      )
+    : items;
+  return sortItems(filtered, filters.sort);
 }
 
 export default function Homepage() {
@@ -47,7 +99,10 @@ export default function Homepage() {
   const [createState, setCreateState] = useState({ loading: false, error: null });
   const [deleteState, setDeleteState] = useState({ loading: false, error: null });
   const [unlistState, setUnlistState] = useState({ loadingId: null, error: null });
-  const [uploadState, setUploadState] = useState({ uploading: false, error: null });
+  const [uploadState, setUploadState] = useState({
+    uploading: false,
+    error: null,
+  });
   const [enrichState, setEnrichState] = useState({ loading: false, error: null });
   const [sellDialog, setSellDialog] = useState({
     open: false,
@@ -56,6 +111,14 @@ export default function Homepage() {
     suggestion: null,
     item: null,
     priceInput: "",
+  });
+  const [inventoryFilters, setInventoryFilters] = useState({
+    search: "",
+    sort: "expiry",
+  });
+  const [marketFilters, setMarketFilters] = useState({
+    search: "",
+    sort: "expiry",
   });
 
   useEffect(() => {
@@ -417,8 +480,11 @@ export default function Homepage() {
     }
   }
 
-  const inventoryItems = sortByExpiry(items.filter((item) => item.type !== "marketplace"));
-  const marketplaceItems = sortByExpiry(marketItems);
+  const inventoryItems = applyFilters(
+    items.filter((item) => item.type !== "marketplace"),
+    inventoryFilters,
+  );
+  const marketplaceItems = applyFilters(marketItems, marketFilters);
   const canManageItem = (item) => item?.sellerId === user?.id;
 
   return (
@@ -563,6 +629,37 @@ export default function Homepage() {
                                             expiring soon, and decide what to
                                             share or sell.
                                         </p>
+                                        <div className="filter-bar">
+                                            <input
+                                                type="search"
+                                                className="filter-input"
+                                                placeholder="Search by item name..."
+                                                value={inventoryFilters.search}
+                                                onChange={(event) =>
+                                                    setInventoryFilters((prev) => ({
+                                                        ...prev,
+                                                        search: event.target.value,
+                                                    }))
+                                                }
+                                            />
+                                            <select
+                                                className="filter-select"
+                                                value={inventoryFilters.sort}
+                                                onChange={(event) =>
+                                                    setInventoryFilters((prev) => ({
+                                                        ...prev,
+                                                        sort: event.target.value,
+                                                    }))
+                                                }
+                                            >
+                                                <option value="expiry">Expiry (soonest first)</option>
+                                                <option value="expiryLatest">Expiry (latest first)</option>
+                                                <option value="quantity">Quantity (low → high)</option>
+                                                <option value="quantityHigh">Quantity (high → low)</option>
+                                                <option value="priceLow">Price (low → high)</option>
+                                                <option value="priceHigh">Price (high → low)</option>
+                                            </select>
+                                        </div>
                                         {itemsState.error && (
                                             <p className="helper-text error">
                                                 {itemsState.error}
@@ -664,6 +761,37 @@ export default function Homepage() {
                                             Browse groceries your neighbours are
                                             selling or giving away near you.
                                         </p>
+                                        <div className="filter-bar">
+                                            <input
+                                                type="search"
+                                                className="filter-input"
+                                                placeholder="Search by item name..."
+                                                value={marketFilters.search}
+                                                onChange={(event) =>
+                                                    setMarketFilters((prev) => ({
+                                                        ...prev,
+                                                        search: event.target.value,
+                                                    }))
+                                                }
+                                            />
+                                            <select
+                                                className="filter-select"
+                                                value={marketFilters.sort}
+                                                onChange={(event) =>
+                                                    setMarketFilters((prev) => ({
+                                                        ...prev,
+                                                        sort: event.target.value,
+                                                    }))
+                                                }
+                                            >
+                                                <option value="expiry">Expiry (soonest first)</option>
+                                                <option value="expiryLatest">Expiry (latest first)</option>
+                                                <option value="quantity">Quantity (low → high)</option>
+                                                <option value="quantityHigh">Quantity (high → low)</option>
+                                                <option value="priceLow">Price (low → high)</option>
+                                                <option value="priceHigh">Price (high → low)</option>
+                                            </select>
+                                        </div>
                                         {marketState.error && (
                                             <p className="helper-text error">{marketState.error}</p>
                                         )}
