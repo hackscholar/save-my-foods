@@ -59,7 +59,7 @@ Return values mirror Supabase Auth responses, so you can forward the session tok
 
 ## Items API
 
-A simple `items` table in Supabase (columns: `id uuid default gen_random_uuid() primary key, seller_id uuid not null, type text not null default 'inventory', name text not null, expiry_date date, date_of_purchase date, price numeric, quantity integer not null default 0, image_path text, created_at timestamptz default now(), updated_at timestamptz default now()`) powers the item upload endpoint.
+A simple `items` table in Supabase (columns: `id uuid default gen_random_uuid() primary key, seller_id uuid not null, type text not null default 'inventory', name text not null, category text, expiry_date date, date_of_purchase date, price numeric, quantity integer not null default 0, image_path text, created_at timestamptz default now(), updated_at timestamptz default now()`) powers the item upload endpoint.
 
 - **Endpoint:** `POST /api/items`
 - **Body:**
@@ -68,6 +68,7 @@ A simple `items` table in Supabase (columns: `id uuid default gen_random_uuid() 
     "sellerId": "00000000-0000-0000-0000-000000000000",
     "type": "inventory",
     "name": "Cherry Tomatoes",
+    "category": "produce",
     "expiryDate": "2025-12-01",
     "dateOfPurchase": "2025-11-15",
     "price": 4.99,
@@ -77,7 +78,7 @@ A simple `items` table in Supabase (columns: `id uuid default gen_random_uuid() 
   ```
 - **Response:** `201` with `{ "item": { "id": "...", "sellerId": "...", "name": "...", ... } }`
 
-`type` defaults to `inventory` if omitted, and `quantity` must be a non-negative integer. Dates should be ISO-8601 strings (e.g. `YYYY-MM-DD`). Use your Supabase `seller_id` (often the Supabase Auth user ID) to associate items with a user.
+`type` defaults to `inventory` if omitted, and `quantity` must be a non-negative integer. Dates should be ISO-8601 strings (e.g. `YYYY-MM-DD`). `category` must be one of: `produce`, `bakery`, `meat`, `dairy`, `pantry`, `snacks`, `frozen`, or `other`. Use your Supabase `seller_id` (often the Supabase Auth user ID) to associate items with a user.
 
 ### AI enrichment (Gemini)
 
