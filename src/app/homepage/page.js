@@ -785,7 +785,7 @@ export default function Homepage() {
                                         <div className="groceries-grid">
                                             {inventoryItems.map((item) => (
                                                 <article className="grocery-card" key={item.id}>
-                                                    {canManageItem(item) && (
+                                                    {canManageItem(item) ? (
                                                         <div className="grocery-card__overlay">
                                                             <button
                                                                 type="button"
@@ -811,6 +811,21 @@ export default function Homepage() {
                                                                     Sell
                                                                 </button>
                                                             )}
+                                                        </div>
+                                                    ) : (
+                                                        <div className="grocery-card__overlay">
+                                                            <button
+                                                                type="button"
+                                                                className={`grocery-card__overlay-button ${isInCart(item.id) ? "grocery-card__overlay-button--disabled" : ""}`}
+                                                                onClick={(e) => {
+                                                                    e.preventDefault();
+                                                                    e.stopPropagation();
+                                                                    addToCart(item);
+                                                                }}
+                                                                disabled={isInCart(item.id)}
+                                                            >
+                                                                {isInCart(item.id) ? "In cart" : "Add to cart"}
+                                                            </button>
                                                         </div>
                                                     )}
                                                     <div className="grocery-card__image-wrap">
@@ -845,19 +860,13 @@ export default function Homepage() {
                                                             </div>
                                                             <div>
                                                                 <dt>Expires</dt>
-                                                                <dd>{item.expiryDate ? new Date(item.expiryDate).toLocaleDateString() : "—"}</dd>
+                                                                <dd>
+                                                                    {item.expiryDate
+                                                                        ? new Date(item.expiryDate).toLocaleDateString()
+                                                                        : "—"}
+                                                                </dd>
                                                             </div>
                                                         </dl>
-                                                        {item.sellerId !== user?.id && (
-                                                            <button
-                                                                type="button"
-                                                                className={`cart-add-button ${isInCart(item.id) ? "cart-add-button--disabled" : ""}`}
-                                                                onClick={() => addToCart(item)}
-                                                                disabled={isInCart(item.id)}
-                                                            >
-                                                                {isInCart(item.id) ? "In cart" : "Add to cart"}
-                                                            </button>
-                                                        )}
                                                     </div>
                                                 </article>
                                             ))}
@@ -928,7 +937,7 @@ export default function Homepage() {
                                         <div className="groceries-grid">
                                             {marketplaceItems.map((item) => (
                                                 <article className="grocery-card" key={`${item.id}-market`}>
-                                                    {canManageItem(item) && (
+                                                    {canManageItem(item) ? (
                                                         <div className="grocery-card__overlay">
                                                             <button
                                                                 type="button"
@@ -955,7 +964,22 @@ export default function Homepage() {
                                                                     ? "Unlisting…"
                                                                     : "Unlist"}
                                                             </button>
-                                                    </div>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="grocery-card__overlay">
+                                                            <button
+                                                                type="button"
+                                                                className={`grocery-card__overlay-button ${isInCart(item.id) ? "grocery-card__overlay-button--disabled" : ""}`}
+                                                                onClick={(e) => {
+                                                                    e.preventDefault();
+                                                                    e.stopPropagation();
+                                                                    addToCart(item);
+                                                                }}
+                                                                disabled={isInCart(item.id)}
+                                                            >
+                                                                {isInCart(item.id) ? "In cart" : "Add to cart"}
+                                                            </button>
+                                                        </div>
                                                     )}
                                                     <div className="grocery-card__image-wrap">
                                                         {item.imagePath ? (
@@ -992,16 +1016,6 @@ export default function Homepage() {
                                                                 <dd>{item.expiryDate ? new Date(item.expiryDate).toLocaleDateString() : "—"}</dd>
                                                             </div>
                                                         </dl>
-                                                        {item.sellerId !== user?.id && (
-                                                            <button
-                                                                type="button"
-                                                                className="cart-add-button"
-                                                                onClick={() => addToCart(item)}
-                                                                disabled={isInCart(item.id)}
-                                                            >
-                                                                {isInCart(item.id) ? "In cart" : "Add to cart"}
-                                                            </button>
-                                                        )}
                                                     </div>
                                                 </article>
                                             ))}

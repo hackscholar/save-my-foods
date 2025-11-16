@@ -611,25 +611,6 @@
     color: #4b5563;
 }
 
-.cart-add-button {
-    margin-top: 0.5rem;
-    border: 1px solid #1e9f49;
-    border-radius: 8px;
-    background: #ffffff;
-    color: #1e9f49;
-    padding: 0.35rem 0.8rem;
-    font-size: 0.85rem;
-    cursor: pointer;
-    opacity: 0;
-    transition: opacity 0.2s ease;
-}
-
-.cart-add-button:disabled {
-    background: #f3f4f6;
-    color: #9ca3af;
-    border-color: #e5e7eb;
-    cursor: not-allowed;
-}
 
 .grocery-card--add {
     border: 2px dashed #cbd5f5;
@@ -670,6 +651,12 @@
     color: #111827;
     font-weight: 600;
     cursor: pointer;
+}
+
+.grocery-card__overlay-button--disabled {
+    background: #e5e7eb;
+    color: #9ca3af;
+    cursor: not-allowed;
 }
 
 .grocery-card__overlay-button--danger {
@@ -812,7 +799,4 @@
     .sidebar {
         width: 100%;
     }
-}
-.grocery-card:hover .cart-add-button {
-    opacity: 1;
 }
