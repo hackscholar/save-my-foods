@@ -1,4 +1,4 @@
-// src/app/page.js
+import Image from "next/image";
 
 export default function Home() {
   return (
@@ -6,9 +6,13 @@ export default function Home() {
       <div className="login-card">
         <div className="brand-lockup">
           <div className="brand-name">
-            <span className="brand-main">Save</span>
-            <span className="brand-circle">my</span>
-            <span className="brand-main">Foods</span>
+            <Image
+                src="/headericon.png"
+                alt="SaveMyFoods logo"
+                width={60}
+                height={60}
+                className="logo"
+            />
           </div>
           <p className="brand-tagline">
             A marketplace to share extra groceries and reduce food waste.
