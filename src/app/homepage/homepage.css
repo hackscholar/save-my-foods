@@ -10,7 +10,7 @@
     justify-content: center;
 }
 
-/* INTRO OVERLAY — transparent green, auto fade */
+/* INTRO OVERLAY — transparent green, auto fade yes */
 .intro-overlay {
     position: fixed;
     inset: 0;
