@@ -18,6 +18,7 @@ function createEmptyForm() {
 export default function Homepage() {
   const [hasEntered, setHasEntered] = useState(false);
   const [activeTab, setActiveTab] = useState("my-groceries");
+  const [isPopupOpen, setIsPopupOpen] = useState(false);
   const [user, setUser] = useState(null);
   const [items, setItems] = useState([]);
   const [itemsState, setItemsState] = useState({ loading: false, error: null });
@@ -133,9 +134,6 @@ export default function Homepage() {
       setCreateState({ loading: false, error: error.message });
     }
   }
-    const [hasEntered, setHasEntered] = useState(false);
-    const [activeTab, setActiveTab] = useState("my-groceries"); // "my-groceries" | "local-marketplace"
-    const [isPopupOpen, setIsPopupOpen] = useState(false);
 
   async function handleImageUpload(event) {
     const file = event.target.files?.[0];
@@ -292,7 +290,7 @@ export default function Homepage() {
                                             : ""
                                         }`}
                                     onClick={() => setActiveTab("my-groceries")}
-                              
+                                >
                                     My groceries
                                 </button>
 
