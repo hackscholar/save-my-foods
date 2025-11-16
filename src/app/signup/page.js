@@ -1,7 +1,7 @@
 // src/app/signup/page.js
 "use client";
-import Image from "next/image";
 import { useRouter } from "next/navigation";
+import BrandLogo from "../components/BrandLogo";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -14,15 +14,7 @@ export default function SignupPage() {
     <div className="login-page">
       <div className="login-card">
         <div className="brand-lockup">
-            <div className="brand-name">
-                <Image
-                    src="/headericon.PNG"
-                    alt="SaveMyFoods logo"
-                    width={350}
-                    height={150}
-                    className="logo"
-                />
-            </div>
+          <BrandLogo />
           <p className="brand-tagline">
             Create an account to start sharing and claiming groceries.
           </p>

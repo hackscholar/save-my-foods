@@ -1,6 +1,6 @@
 "use client";
-import Image from "next/image";
 import { useRouter } from "next/navigation";
+import BrandLogo from "./components/BrandLogo";
 
 export default function Home() {
     const router = useRouter();
@@ -24,15 +24,7 @@ export default function Home() {
     <div className="login-page">
       <div className="login-card">
         <div className="brand-lockup">
-            <div className="brand-name">
-            <Image
-                src="/headericon.PNG"
-                alt="SaveMyFoods logo"
-                width={350}
-                height={150}
-                className="logo"
-            />
-          </div>
+          <BrandLogo />
           <p className="brand-tagline">
             A marketplace to share extra groceries and reduce food waste.
           </p>

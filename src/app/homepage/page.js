@@ -2,11 +2,13 @@
 
 import { useState, useEffect } from "react";
 import Image from "next/image";
+import Popup from "../components/ingedientspopup";
 import "./homepage.css";
 
 export default function Homepage() {
     const [hasEntered, setHasEntered] = useState(false);
     const [activeTab, setActiveTab] = useState("my-groceries"); // "my-groceries" | "local-marketplace"
+    const [isPopupOpen, setIsPopupOpen] = useState(false);
 
     // Auto-enter after 3 seconds
     useEffect(() => {
@@ -148,6 +150,18 @@ export default function Homepage() {
                     </div>
                 </section>
             </div>
+            <button
+                type="button"
+                className="ingredients-button hover-grow-small"
+                onClick={() => setIsPopupOpen(true)}
+            >
+                Ingredients Pop Up
+            </button>
+            <Popup
+                isOpen={isPopupOpen}
+                onClose={() => setIsPopupOpen(false)}
+            />
+
         </main>
     );
 }
