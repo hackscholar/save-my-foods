@@ -1,9 +1,17 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import "./homepage.css";
+
+const CHATBOT_IMAGES = {
+  idle: "/chatbot-idle.png",
+  hover: "/chatbot-hover.png",
+  speaking: "/chatbot-speaking.png",
+};
+
+const CHATBOT_SPEAK_DELAY = 1500;
 
 function toDateInput(value) {
   if (!value) return "";
@@ -85,6 +93,7 @@ function applyFilters(items = [], filters) {
 export default function Homepage() {
   const router = useRouter();
   const profileMenuRef = useRef(null);
+  const chatbotTimerRef = useRef(null);
   const [hasEntered, setHasEntered] = useState(false);
   const [activeTab, setActiveTab] = useState("my-groceries");
   const [isProfileMenuOpen, setProfileMenuOpen] = useState(false);
@@ -122,6 +131,7 @@ export default function Homepage() {
   });
   const [cartItems, setCartItems] = useState([]);
   const [cartState, setCartState] = useState({ loading: false, error: null, success: null });
+  const [chatbotState, setChatbotState] = useState("idle");
 
   useEffect(() => {
     const timer = setTimeout(() => setHasEntered(true), 3000);
@@ -150,7 +160,7 @@ export default function Homepage() {
     }
   }, []);
 
-  async function fetchInventoryItems() {
+  const fetchInventoryItems = useCallback(async () => {
     if (!user?.id) return;
     setItemsState({ loading: true, error: null });
     try {
@@ -164,9 +174,9 @@ export default function Homepage() {
     } catch (error) {
       setItemsState({ loading: false, error: error.message });
     }
-  }
+  }, [user?.id]);
 
-  async function fetchMarketplaceItems() {
+  const fetchMarketplaceItems = useCallback(async () => {
     setMarketState({ loading: true, error: null });
     try {
       const response = await fetch("/api/items?type=marketplace");
@@ -179,15 +189,49 @@ export default function Homepage() {
     } catch (error) {
       setMarketState({ loading: false, error: error.message });
     }
-  }
+  }, []);
+
+  const handleChatbotInteractionStart = useCallback(() => {
+    if (chatbotTimerRef.current) {
+      clearTimeout(chatbotTimerRef.current);
+      chatbotTimerRef.current = null;
+    }
+
+    setChatbotState((previous) => {
+      if (previous === "speaking") {
+        return previous;
+      }
+      chatbotTimerRef.current = setTimeout(() => {
+        setChatbotState("speaking");
+        chatbotTimerRef.current = null;
+      }, CHATBOT_SPEAK_DELAY);
+      return "hover";
+    });
+  }, []);
+
+  const handleChatbotInteractionEnd = useCallback(() => {
+    if (chatbotTimerRef.current) {
+      clearTimeout(chatbotTimerRef.current);
+      chatbotTimerRef.current = null;
+    }
+    setChatbotState("idle");
+  }, []);
 
   useEffect(() => {
     if (!user?.id) return;
     fetchInventoryItems();
-  }, [user?.id]);
+  }, [user?.id, fetchInventoryItems]);
 
   useEffect(() => {
     fetchMarketplaceItems();
+  }, [fetchMarketplaceItems]);
+
+  useEffect(() => {
+    return () => {
+      if (chatbotTimerRef.current) {
+        clearTimeout(chatbotTimerRef.current);
+      }
+    };
   }, []);
 
   function refreshItems() {
@@ -554,6 +598,7 @@ export default function Homepage() {
     { label: "Frozen", icon: "🧊", filter: "frozen" },
   ];
   const [selectedCategory, setSelectedCategory] = useState(null);
+  const chatbotImageSrc = CHATBOT_IMAGES[chatbotState] ?? CHATBOT_IMAGES.idle;
 
   return (
     <main className="homepage-root">
@@ -824,7 +869,7 @@ export default function Homepage() {
                                                     }`}
                                                     key={item.id}
                                                 >
-                                                    {canManageItem(item) && (
+                                                    {canManageItem(item) ? (
                                                         <div className="grocery-card__overlay">
                                                             <button
                                                                 type="button"
@@ -850,6 +895,21 @@ export default function Homepage() {
                                                                     Sell
                                                                 </button>
                                                             )}
+                                                        </div>
+                                                    ) : (
+                                                        <div className="grocery-card__overlay">
+                                                            <button
+                                                                type="button"
+                                                                className={`grocery-card__overlay-button ${isInCart(item.id) ? "grocery-card__overlay-button--disabled" : ""}`}
+                                                                onClick={(e) => {
+                                                                    e.preventDefault();
+                                                                    e.stopPropagation();
+                                                                    addToCart(item);
+                                                                }}
+                                                                disabled={isInCart(item.id)}
+                                                            >
+                                                                {isInCart(item.id) ? "In cart" : "Add to cart"}
+                                                            </button>
                                                         </div>
                                                     )}
                                                     <div className="grocery-card__image-wrap">
@@ -884,19 +944,13 @@ export default function Homepage() {
                                                             </div>
                                                             <div>
                                                                 <dt>Expires</dt>
-                                                                <dd>{item.expiryDate ? new Date(item.expiryDate).toLocaleDateString() : "—"}</dd>
+                                                                <dd>
+                                                                    {item.expiryDate
+                                                                        ? new Date(item.expiryDate).toLocaleDateString()
+                                                                        : "—"}
+                                                                </dd>
                                                             </div>
                                                         </dl>
-                                                        {item.sellerId !== user?.id && (
-                                                            <button
-                                                                type="button"
-                                                                className={`cart-add-button ${isInCart(item.id) ? "cart-add-button--disabled" : ""}`}
-                                                                onClick={() => addToCart(item)}
-                                                                disabled={isInCart(item.id)}
-                                                            >
-                                                                {isInCart(item.id) ? "In cart" : "Add to cart"}
-                                                            </button>
-                                                        )}
                                                     </div>
                                                 </article>
                                             ))}
@@ -995,7 +1049,7 @@ export default function Homepage() {
                                                     className={`grocery-card ${item.sellerId !== user?.id ? "is-other" : ""}`}
                                                     key={`${item.id}-market`}
                                                 >
-                                                    {canManageItem(item) && (
+                                                    {canManageItem(item) ? (
                                                         <div className="grocery-card__overlay">
                                                             <button
                                                                 type="button"
@@ -1022,7 +1076,22 @@ export default function Homepage() {
                                                                     ? "Unlisting…"
                                                                     : "Unlist"}
                                                             </button>
-                                                    </div>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="grocery-card__overlay">
+                                                            <button
+                                                                type="button"
+                                                                className={`grocery-card__overlay-button ${isInCart(item.id) ? "grocery-card__overlay-button--disabled" : ""}`}
+                                                                onClick={(e) => {
+                                                                    e.preventDefault();
+                                                                    e.stopPropagation();
+                                                                    addToCart(item);
+                                                                }}
+                                                                disabled={isInCart(item.id)}
+                                                            >
+                                                                {isInCart(item.id) ? "In cart" : "Add to cart"}
+                                                            </button>
+                                                        </div>
                                                     )}
                                                     <div className="grocery-card__image-wrap">
                                                         {item.imagePath ? (
@@ -1059,16 +1128,6 @@ export default function Homepage() {
                                                                 <dd>{item.expiryDate ? new Date(item.expiryDate).toLocaleDateString() : "—"}</dd>
                                                             </div>
                                                         </dl>
-                                                        {item.sellerId !== user?.id && (
-                                                            <button
-                                                                type="button"
-                                                                className="cart-add-button"
-                                                                onClick={() => addToCart(item)}
-                                                                disabled={isInCart(item.id)}
-                                                            >
-                                                                {isInCart(item.id) ? "In cart" : "Add to cart"}
-                                                            </button>
-                                                        )}
                                                     </div>
                                                 </article>
                                             ))}
@@ -1085,6 +1144,39 @@ export default function Homepage() {
                     </div>
 
                 </section>
+            </div>
+            <div
+                className="chatbot-container"
+                onMouseEnter={handleChatbotInteractionStart}
+                onMouseLeave={handleChatbotInteractionEnd}
+            >
+                {chatbotState === "speaking" && (
+                    <div className="chatbot-bubble" aria-live="polite">
+                        <Image
+                            src="/speechbubble.png"
+                            alt="Chatbot speech bubble"
+                            width={260}
+                            height={180}
+                            className="chatbot-bubble-image"
+                        />
+                        <span className="chatbot-bubble-text" aria-hidden="true" />
+                    </div>
+                )}
+                <button
+                    type="button"
+                    className="chatbot-trigger"
+                    onFocus={handleChatbotInteractionStart}
+                    onBlur={handleChatbotInteractionEnd}
+                    aria-label="Open SaveMyFoods chatbot"
+                >
+                    <Image
+                        src={chatbotImageSrc}
+                        alt="SaveMyFoods chatbot"
+                        width={140}
+                        height={140}
+                        className="chatbot-image"
+                    />
+                </button>
             </div>
             {isModalOpen && (
                 <div className="modal-overlay" role="dialog" aria-modal="true">
