@@ -66,15 +66,17 @@ export async function generateItemMetadataFromImage(imageUrl, options = {}) {
     ? `\nDate of purchase: ${dateOfPurchase}. Estimate an expiry/best-before date based on typical shelf life relative to this purchase date.`
     : "";
 
-  const prompt = `
+const prompt = `
 You analyze grocery images. Return JSON like:
 {
   "name": "string|null",
   "expiryDate": "YYYY-MM-DD|null",
+  "quantity": number|null,
   "confidence": 0-1,
   "notes": "string|null"
 }
 - Guess the item name (concise).
+- Estimate how many whole items/servings are visible as an integer (or null if uncertain).
 - Estimate expiry date only if label/date info exists; otherwise null.
 - Do not invent impossible values.${purchaseContext}
   `.trim();
@@ -98,8 +100,124 @@ You analyze grocery images. Return JSON like:
   return {
     name: parsed.name ?? null,
     expiryDate: parsed.expiryDate ?? parsed.expiry_date ?? null,
+    quantity: parsed.quantity ?? null,
     confidence: parsed.confidence ?? null,
     notes: parsed.notes ?? null,
+    raw: parsed,
+  };
+}
+
+export async function generateIngredientsFromImage(imageUrl, options = {}) {
+  if (!imageUrl) {
+    throw new Error("imageUrl is required to infer ingredients.");
+  }
+
+  const aiClient = ensureGeminiClient();
+  const modelName = process.env.GEMINI_MODEL || DEFAULT_MODEL;
+  const model = aiClient.getGenerativeModel({ model: modelName });
+  const { data, mimeType } = await downloadImageAsBase64(imageUrl);
+
+  const inventoryNames = Array.isArray(options?.inventoryNames) ? options.inventoryNames : [];
+  const inventoryPrompt =
+    inventoryNames.length > 0
+      ? `\nOnly choose ingredient names from this list (if none match, respond with an empty array): ${inventoryNames.join(", ")}.`
+      : "";
+
+  const additionalNotes = options?.notes
+    ? `\nAdditional context from user: ${options.notes}`
+    : "";
+
+  const prompt = `
+You analyze photos of cooked dishes or grocery hauls.
+Return JSON like:
+{
+  "ingredients": [
+    { "name": "string", "quantity": "string|null" }
+  ],
+  "confidence": 0-1,
+  "notes": "string|null"
+}
+- Only include ingredients you can reasonably infer.
+- Provide human-friendly quantity estimates (e.g., "2 cups", "1 bunch") or null if unsure.
+- List at most 12 ingredients, most visually obvious first.
+- If uncertain, return an empty array and explain in notes.${inventoryPrompt}${additionalNotes}
+  `.trim();
+
+  const result = await model.generateContent({
+    contents: [
+      {
+        role: "user",
+        parts: [
+          { text: prompt },
+          { inlineData: { data, mimeType } },
+        ],
+      },
+    ],
+  });
+
+  const response = await result.response;
+  const parsed = parseModelResponse(response.text());
+  const ingredients = Array.isArray(parsed.ingredients) ? parsed.ingredients : [];
+
+  return {
+    ingredients: ingredients.map((entry) => ({
+      name: entry?.name ?? null,
+      quantity: entry?.quantity ?? null,
+    })),
+    confidence: parsed.confidence ?? null,
+    notes: parsed.notes ?? null,
+    raw: parsed,
+  };
+}
+
+export async function generatePriceSuggestion({
+  name,
+  quantity,
+  expiryDate,
+  dateOfPurchase,
+}) {
+  if (!name) {
+    throw new Error("Item name is required to estimate price.");
+  }
+
+  const aiClient = ensureGeminiClient();
+  const modelName = process.env.GEMINI_MODEL || DEFAULT_MODEL;
+  const model = aiClient.getGenerativeModel({ model: modelName });
+
+  const prompt = `
+You estimate listing prices for pre-owned groceries/ingredients.
+Return JSON:
+{
+  "price": number,
+  "explanation": "string"
+}
+Input details:
+- name: "${name}"
+- quantity: "${quantity ?? "unknown"}"
+- expiryDate: "${expiryDate ?? "unknown"}"
+- dateOfPurchase: "${dateOfPurchase ?? "unknown"}"
+
+Assume USD prices. Reference typical online prices, then discount for freshness and proximity to expiry.
+Explain your reasoning briefly (include expiry impact or market comparison). If unsure, give best estimate.
+  `.trim();
+
+  const result = await model.generateContent({
+    contents: [
+      {
+        role: "user",
+        parts: [{ text: prompt }],
+      },
+    ],
+  });
+
+  const parsed = parseModelResponse(result.response.text());
+  if (parsed.price === undefined || parsed.price === null) {
+    throw new Error("AI could not estimate a price.");
+  }
+
+  return {
+    price: Number(parsed.price),
+    explanation: parsed.explanation ?? "Estimated using comparable online prices and freshness.",
     raw: parsed,
   };
 }

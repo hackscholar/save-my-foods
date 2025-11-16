@@ -12,6 +12,7 @@ export async function POST(request) {
 
   const itemId = payload?.itemId ?? payload?.item_id ?? null;
   const overrideImageUrl = payload?.imageUrl ?? payload?.image_url ?? null;
+  const providedPurchaseDate = payload?.dateOfPurchase ?? payload?.date_of_purchase ?? null;
 
   if (!itemId && !overrideImageUrl) {
     return NextResponse.json(
@@ -38,7 +39,7 @@ export async function POST(request) {
 
   try {
     const aiResult = await generateItemMetadataFromImage(imageUrl, {
-      dateOfPurchase: itemRecord?.dateOfPurchase ?? null,
+      dateOfPurchase: itemRecord?.dateOfPurchase ?? providedPurchaseDate ?? null,
     });
 
     let updatedItem = itemRecord;
