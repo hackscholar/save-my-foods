@@ -51,7 +51,7 @@ export async function POST(request) {
   }
 
   try {
-    const inventory = await listItemsBySeller(ownerId);
+    const inventory = await listItemsBySeller(ownerId, "inventory");
     const aiResult = await generateIngredientsFromImage(imageUrl, {
       notes: userNotes ?? null,
       inventoryNames: inventory.map((item) => item.name),
