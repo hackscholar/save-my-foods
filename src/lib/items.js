@@ -1,4 +1,5 @@
 import { getSupabaseServiceClient } from "@/lib/supabase";
+import { ITEM_CATEGORY_IDS } from "@/lib/itemCategories";
 import { ITEM_CATEGORY_VALUES, normalizeCategory } from "@/lib/item-categories";
 
 const ITEMS_TABLE = "items";
@@ -27,6 +28,10 @@ export function validateItemInput(payload = {}) {
 
   if (payload.type && !ITEM_TYPES.includes(payload.type)) {
     issues.type = `type must be one of: ${ITEM_TYPES.join(", ")}.`;
+  }
+
+  if (!payload.category || !ITEM_CATEGORY_IDS.includes(payload.category)) {
+    issues.category = `category must be one of: ${ITEM_CATEGORY_IDS.join(", ")}.`;
   }
 
   if (payload.price !== undefined && payload.price !== null) {
@@ -76,6 +81,7 @@ export async function createItem(payload) {
     expiry_date: payload.expiryDate ?? null,
     date_of_purchase: payload.dateOfPurchase ?? null,
     category: sanitizeCategory(payload.category),
+    category: payload.category ?? null,
     price:
       payload.price !== undefined && payload.price !== null ? toNumber(payload.price) : null,
     quantity: Number(payload.quantity),
@@ -123,6 +129,7 @@ export async function updateItem(itemId, patch = {}) {
   if (patch.quantity !== undefined) updatePayload.quantity = patch.quantity;
   if (patch.imagePath !== undefined) updatePayload.image_path = patch.imagePath;
   if (patch.category !== undefined) updatePayload.category = sanitizeCategory(patch.category);
+  if (patch.category !== undefined) updatePayload.category = patch.category;
 
   if (Object.keys(updatePayload).length === 0) {
     throw new Error("No valid fields provided to update item.");
@@ -194,6 +201,7 @@ export function formatItem(record) {
     expiryDate: record.expiry_date,
     dateOfPurchase: record.date_of_purchase,
     price: record.price,
+    category: record.category ?? null,
     quantity: record.quantity,
     imagePath: record.image_path,
     category: record.category ?? null,

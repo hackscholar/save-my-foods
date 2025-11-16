@@ -67,6 +67,9 @@ export async function PATCH(request) {
   if (payload.category !== undefined) {
     patch.category = payload.category;
   }
+  if (payload.category !== undefined) {
+    patch.category = payload.category;
+  }
 
   if (Object.keys(patch).length === 0) {
     return NextResponse.json(
@@ -105,6 +108,7 @@ export async function POST(request) {
     quantity: payload.quantity,
     imagePath: payload.imagePath ?? payload.image_path ?? null,
     category: payload.category ?? payload.category_slug ?? null,
+    category: payload.category ?? null,
   };
 
   const validationErrors = validateItemInput(submission);
