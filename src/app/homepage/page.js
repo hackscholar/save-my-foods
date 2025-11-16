@@ -24,6 +24,7 @@ function createEmptyForm() {
 export default function Homepage() {
   const [hasEntered, setHasEntered] = useState(false);
   const [activeTab, setActiveTab] = useState("my-groceries");
+  const [isPopupOpen, setIsPopupOpen] = useState(false);
   const [user, setUser] = useState(null);
   const [items, setItems] = useState([]);
   const [itemsState, setItemsState] = useState({ loading: false, error: null });
