@@ -1200,28 +1200,47 @@ export default function Homepage() {
                                         .filter((item) => item.sellerId === user?.id)
                                         .map((item) => (
                                             <li key={`sell-${item.id}`} className="selling-item">
-                                                <div className="selling-item__thumb">
-                                                    {item.imagePath ? (
-                                                        <Image
-                                                            src={item.imagePath}
-                                                            alt={item.name}
-                                                            width={48}
-                                                            height={48}
-                                                        />
-                                                    ) : (
-                                                        <span>No image</span>
-                                                    )}
-                                                </div>
-                                                <div className="selling-item__info">
-                                                    <strong>{item.name}</strong>
-                                                    <span>
-                                                        {item.price !== null && item.price !== undefined
-                                                            ? ` • $${Number(item.price).toFixed(2)}`
-                                                            : ""}
-                                                    </span>
-                                                    <div className="selling-meta">
-                                                        Qty: {item.quantity ?? 0}
+                                                <div className="selling-item__content">
+                                                    <div className="selling-item__thumb">
+                                                        {item.imagePath ? (
+                                                            <Image
+                                                                src={item.imagePath}
+                                                                alt={item.name}
+                                                                width={48}
+                                                                height={48}
+                                                            />
+                                                        ) : (
+                                                            <span>No image</span>
+                                                        )}
                                                     </div>
+                                                    <div className="selling-item__info">
+                                                        <strong>{item.name}</strong>
+                                                        <span>
+                                                            {item.price !== null && item.price !== undefined
+                                                                ? ` • $${Number(item.price).toFixed(2)}`
+                                                                : ""}
+                                                        </span>
+                                                        <div className="selling-meta">
+                                                            Qty: {item.quantity ?? 0}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div className="selling-item__actions">
+                                                    <button
+                                                        type="button"
+                                                        className="selling-action-button"
+                                                        onClick={() => handleEditItem(item)}
+                                                    >
+                                                        Edit
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        className="selling-action-button selling-action-button--danger"
+                                                        onClick={() => handleUnlistItem(item)}
+                                                        disabled={unlistState.loadingId === item.id}
+                                                    >
+                                                        {unlistState.loadingId === item.id ? "Unlisting…" : "Unlist"}
+                                                    </button>
                                                 </div>
                                             </li>
                                         ))}
