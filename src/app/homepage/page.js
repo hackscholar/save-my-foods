@@ -166,6 +166,7 @@ export default function Homepage() {
     sort: "expiry",
   });
   const [cartItems, setCartItems] = useState([]);
+  const [cartSelections, setCartSelections] = useState({});
   const [cartState, setCartState] = useState({ loading: false, error: null, success: null });
   const [notifications, setNotifications] = useState([]);
   const [notificationsState, setNotificationsState] = useState({
@@ -258,7 +259,6 @@ export default function Homepage() {
       clearTimeout(chatbotTimerRef.current);
       chatbotTimerRef.current = null;
     }
-    setChatbotRecipe(INITIAL_CHATBOT_RECIPE);
 
     setChatbotState((previous) => {
       if (previous === "speaking") {
@@ -277,33 +277,29 @@ export default function Homepage() {
       clearTimeout(chatbotTimerRef.current);
       chatbotTimerRef.current = null;
     }
-    setChatbotRecipe(INITIAL_CHATBOT_RECIPE);
     setChatbotState("idle");
   }, []);
 
-  const fetchNotificationsList = useCallback(
-    async (limit = 50) => {
-      if (!user?.id) return;
-      setNotificationsState({ loading: true, error: null });
-      try {
-        const response = await fetch(
-          `/api/notifications?userId=${user.id}&limit=${limit}`,
-        );
-        const data = await response.json();
-        if (!response.ok) {
-          throw new Error(data?.error ?? "Failed to load notifications.");
-        }
-        const next = Array.isArray(data.notifications)
-          ? data.notifications.map(formatNotification).filter(Boolean)
-          : [];
-        setNotifications(next);
-        setNotificationsState({ loading: false, error: null });
-      } catch (error) {
-        setNotificationsState({ loading: false, error: error.message });
+  async function fetchNotificationsList(limit = 50) {
+    if (!user?.id) return;
+    setNotificationsState({ loading: true, error: null });
+    try {
+      const response = await fetch(
+        `/api/notifications?userId=${user.id}&limit=${limit}`,
+      );
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data?.error ?? "Failed to load notifications.");
       }
-    },
-    [user?.id],
-  );
+      const next = Array.isArray(data.notifications)
+        ? data.notifications.map(formatNotification).filter(Boolean)
+        : [];
+      setNotifications(next);
+      setNotificationsState({ loading: false, error: null });
+    } catch (error) {
+      setNotificationsState({ loading: false, error: error.message });
+    }
+  }
 
   function handleNotificationsToggle() {
     if (!user) return;
@@ -357,52 +353,14 @@ export default function Homepage() {
     }
   }
 
-  const requestRecipeSuggestion = useCallback(async () => {
-    if (!user?.id) {
-      setChatbotRecipe({
-        loading: false,
-        data: null,
-        error: "Sign in to get personalized recipe ideas.",
-      });
-      return;
-    }
-    setChatbotRecipe({ loading: true, data: null, error: null });
-    try {
-      const response = await fetch("/api/recipes/suggest", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sellerId: user.id }),
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data?.error ?? "Unable to suggest a recipe right now.");
-      }
-      if (!data.recipe) {
-        throw new Error("No recipe ideas available.");
-      }
-      setChatbotRecipe({ loading: false, data: data.recipe, error: null });
-    } catch (error) {
-      setChatbotRecipe({
-        loading: false,
-        data: null,
-        error: error.message ?? "Unable to suggest a recipe right now.",
-      });
-    }
-  }, [user?.id]);
-
   const handleChatbotYes = useCallback(() => {
     handleChatbotInteractionEnd();
     setIngredientPopupOpen(true);
   }, [handleChatbotInteractionEnd]);
 
   const handleChatbotNo = useCallback(() => {
-    if (chatbotTimerRef.current) {
-      clearTimeout(chatbotTimerRef.current);
-      chatbotTimerRef.current = null;
-    }
-    setChatbotState("speaking");
-    requestRecipeSuggestion();
-  }, [requestRecipeSuggestion]);
+    handleChatbotInteractionEnd();
+  }, [handleChatbotInteractionEnd]);
 
   const handleIngredientPopupClose = useCallback(() => {
     setIngredientPopupOpen(false);
@@ -485,6 +443,57 @@ export default function Homepage() {
   }, [fetchMarketplaceItems]);
 
   useEffect(() => {
+    setCartItems((prev) => {
+      let changed = false;
+      const next = prev
+        .map((item) => {
+          const latest = marketItems.find((marketItem) => marketItem.id === item.id);
+          if (!latest) {
+            changed = true;
+            return null;
+          }
+          const available = Number(latest.quantity ?? 0);
+          if (!Number.isFinite(available) || available <= 0) {
+            changed = true;
+            return null;
+          }
+          const max = Math.max(1, Math.floor(available));
+          const clampedQuantity = clampQuantity(item.quantity, max);
+          if (clampedQuantity !== item.quantity || max !== item.availableQuantity) {
+            changed = true;
+          }
+          return {
+            ...item,
+            quantity: clampedQuantity,
+            availableQuantity: max,
+          };
+        })
+        .filter(Boolean);
+      return changed ? next : prev;
+    });
+  }, [marketItems]);
+
+  useEffect(() => {
+    setCartSelections((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      Object.entries(prev).forEach(([itemId, value]) => {
+        const latest = marketItems.find((item) => item.id === itemId);
+        if (!latest) {
+          return;
+        }
+        const max = Math.max(1, Number(latest.quantity ?? 1));
+        const clamped = clampQuantity(value, max);
+        if (clamped !== value) {
+          next[itemId] = clamped;
+          changed = true;
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, [marketItems]);
+
+  useEffect(() => {
     return () => {
       if (chatbotTimerRef.current) {
         clearTimeout(chatbotTimerRef.current);
@@ -498,7 +507,7 @@ export default function Homepage() {
       return;
     }
     fetchNotificationsList();
-  }, [user?.id, fetchNotificationsList]);
+  }, [user?.id]);
 
   useEffect(() => {
     if (!user) {
@@ -842,10 +851,26 @@ export default function Homepage() {
   ).length;
   function addToCart(item) {
     if (!item || item.sellerId === user?.id) return;
+    const available = Math.max(1, Math.floor(Number(item.quantity ?? 1)));
+    const desired = clampQuantity(cartSelections[item.id] ?? 1, available);
     setCartItems((prev) => {
       if (prev.some((entry) => entry.id === item.id)) return prev;
-      return [...prev, { id: item.id, name: item.name, price: item.price, sellerId: item.sellerId }];
+      return [
+        ...prev,
+        {
+          id: item.id,
+          name: item.name,
+          price: item.price,
+          sellerId: item.sellerId,
+          quantity: desired,
+          availableQuantity: available,
+        },
+      ];
     });
+    setCartSelections((prev) => ({
+      ...prev,
+      [item.id]: desired,
+    }));
     setCartState({ loading: false, error: null, success: null });
   }
 
@@ -866,6 +891,7 @@ export default function Homepage() {
           body: JSON.stringify({
             itemId: item.id,
             buyerId: user.id,
+            quantity: item.quantity ?? 1,
           }),
         }).catch((error) => {
           console.error("Failed to notify seller for item", item.id, error);
@@ -906,7 +932,7 @@ export default function Homepage() {
       if (data.pdf) {
         const link = document.createElement("a");
         link.href = `data:application/pdf;base64,${data.pdf}`;
-        link.download = data.fileName ?? `saveourfoods-receipt-${Date.now()}.pdf`;
+        link.download = data.fileName ?? `savemyfoods-receipt-${Date.now()}.pdf`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -919,15 +945,56 @@ export default function Homepage() {
   
   const canManageItem = (item) => item?.sellerId === user?.id;
   const isInCart = (id) => cartItems.some((item) => item.id === id);
+
+  function clampQuantity(value, max = Infinity) {
+    const parsed = Math.floor(Number(value));
+    if (Number.isNaN(parsed) || parsed <= 0) {
+      return 1;
+    }
+    if (!Number.isFinite(max) || max <= 0) {
+      return parsed;
+    }
+    return Math.max(1, Math.min(parsed, Math.floor(max)));
+  }
+
+  function getAvailableQuantity(itemId) {
+    const latest = marketItems.find((item) => item.id === itemId);
+    if (!latest) {
+      return null;
+    }
+    return Number(latest.quantity ?? null);
+  }
+
+  function handleSelectionChange(itemId, value, max = Infinity) {
+    setCartSelections((prev) => ({
+      ...prev,
+      [itemId]: clampQuantity(value, max),
+    }));
+  }
+
+  function handleCartQuantityChange(itemId, value) {
+    setCartItems((prev) =>
+      prev.map((item) => {
+        if (item.id !== itemId) {
+          return item;
+        }
+        const max = getAvailableQuantity(itemId) ?? item.availableQuantity ?? Infinity;
+        return {
+          ...item,
+          quantity: clampQuantity(value, max),
+        };
+      }),
+    );
+  }
   const categoryShortcuts = [
-    { label: "All", icon: "✨", filter: null },
-    { label: "Produce", icon: "🥬", filter: "produce" },
-    { label: "Bakery", icon: "🥖", filter: "bakery" },
-    { label: "Meat & Seafood", icon: "🥩", filter: "meat" },
-    { label: "Dairy & Eggs", icon: "🥚", filter: "dairy" },
-    { label: "Pantry", icon: "🥫", filter: "pantry" },
-    { label: "Snacks", icon: "🍪", filter: "snacks" },
-    { label: "Frozen", icon: "🧊", filter: "frozen" },
+    { label: "All", filter: null },
+    { label: "Produce", filter: "produce" },
+    { label: "Bakery", filter: "bakery" },
+    { label: "Meat & Seafood", filter: "meat" },
+    { label: "Dairy & Eggs", filter: "dairy" },
+    { label: "Pantry", filter: "pantry" },
+    { label: "Snacks", filter: "snacks" },
+    { label: "Frozen", filter: "frozen" },
   ];
   const [selectedCategory, setSelectedCategory] = useState(null);
   const chatbotImageSrc = CHATBOT_IMAGES[chatbotState] ?? CHATBOT_IMAGES.idle;
@@ -940,7 +1007,7 @@ export default function Homepage() {
                     }`}
             >
                 <div className="intro-content">
-                    <h1 className="intro-title hover-grow">SaveOurFoods</h1>
+                    <h1 className="intro-title hover-grow">SaveMyFoods</h1>
 
                     <p className="intro-subtitle">
                         <span className="typewriter hover-grow">
@@ -975,12 +1042,12 @@ export default function Homepage() {
                     <div className="header-left">
                         <Image
                             src="/icon.png"
-                            alt="SaveOurFoods logo"
+                            alt="SaveMyFoods logo"
                             width={50}
                             height={50}
                             className="header-logo"
                         />
-                        <span className="header-title">SaveOurFoods</span>
+                        <span className="header-title">SaveMyFoods</span>
                     </div>
                     <div className="header-right">
                         <div className="notification-center" ref={notificationsMenuRef}>
@@ -1031,7 +1098,7 @@ export default function Homepage() {
                                             <p className="notification-empty">Loading alerts...</p>
                                         ) : notifications.length === 0 ? (
                                             <p className="notification-empty">
-                                                You&apos;re all caught up.
+                                                You're all caught up.
                                             </p>
                                         ) : (
                                             <ul className="notification-list">
@@ -1167,24 +1234,49 @@ export default function Homepage() {
                                     <p className="selling-empty">No items yet.</p>
                                 ) : (
                                     <ul className="cart-list">
-                                        {cartItems.map((item) => (
-                                            <li key={`cart-${item.id}`}>
-                                                <span>{item.name}</span>
-                                                <div>
-                                                    <span>
-                                                        {item.price !== null && item.price !== undefined
-                                                            ? `$${Number(item.price).toFixed(2)}`
-                                                            : "$0.00"}
-                                                    </span>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => removeFromCart(item.id)}
-                                                    >
-                                                        remove
-                                                    </button>
-                                                </div>
-                                            </li>
-                                        ))}
+                                        {cartItems.map((item) => {
+                                            const quantityInputId = `cart-qty-${item.id}`;
+                                            const available = getAvailableQuantity(item.id) ?? item.availableQuantity ?? item.quantity ?? 1;
+                                            const maxQuantity = Math.max(1, Math.floor(Number(available)));
+                                            return (
+                                                <li key={`cart-${item.id}`}>
+                                                    <div className="cart-item-row">
+                                                        <div>
+                                                            <span className="cart-item-name">{item.name}</span>
+                                                            <span className="cart-item-price">
+                                                                {item.price !== null && item.price !== undefined
+                                                                    ? `$${Number(item.price).toFixed(2)}`
+                                                                    : "$0.00"}
+                                                            </span>
+                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => removeFromCart(item.id)}
+                                                        >
+                                                            remove
+                                                        </button>
+                                                    </div>
+                                                    <div className="cart-item-controls">
+                                                        <label htmlFor={quantityInputId} className="cart-quantity-control">
+                                                            <span>Qty</span>
+                                                            <input
+                                                                id={quantityInputId}
+                                                                type="number"
+                                                                min={1}
+                                                                max={maxQuantity}
+                                                                value={item.quantity ?? 1}
+                                                                onChange={(event) =>
+                                                                    handleCartQuantityChange(item.id, event.target.value)
+                                                                }
+                                                            />
+                                                        </label>
+                                                        <span className="cart-item-available">
+                                                            {maxQuantity} available
+                                                        </span>
+                                                    </div>
+                                                </li>
+                                            );
+                                        })}
                                     </ul>
                                 )}
                                 {cartState.error && (
@@ -1285,7 +1377,6 @@ export default function Homepage() {
                                                     type="button"
                                                     onClick={() => setSelectedCategory(category.filter)}
                                                 >
-                                                    <span>{category.icon}</span>
                                                     <p>{category.label}</p>
                                                 </button>
                                             ))}
@@ -1326,7 +1417,22 @@ export default function Homepage() {
                                                             )}
                                                         </div>
                                                     ) : (
-                                                        <div className="grocery-card__overlay">
+                                                        <div className="grocery-card__overlay grocery-card__overlay--purchase">
+                                                            <label htmlFor={quantityInputId} className="quantity-selector">
+                                                                <span>Qty</span>
+                                                                <input
+                                                                    id={quantityInputId}
+                                                                    type="number"
+                                                                    min={1}
+                                                                    max={maxSelectable}
+                                                                    value={selectionValue}
+                                                                    onChange={(event) =>
+                                                                        handleSelectionChange(item.id, event.target.value, maxSelectable)
+                                                                    }
+                                                                    disabled={outOfStock || isInCart(item.id)}
+                                                                />
+                                                                <small>of {maxSelectable}</small>
+                                                            </label>
                                                             <button
                                                                 type="button"
                                                                 className={`grocery-card__overlay-button ${isInCart(item.id) ? "grocery-card__overlay-button--disabled" : ""}`}
@@ -1335,9 +1441,9 @@ export default function Homepage() {
                                                                     e.stopPropagation();
                                                                     addToCart(item);
                                                                 }}
-                                                                disabled={isInCart(item.id)}
+                                                                disabled={isInCart(item.id) || outOfStock}
                                                             >
-                                                                {isInCart(item.id) ? "In cart" : "Add to cart"}
+                                                                {outOfStock ? "Sold out" : isInCart(item.id) ? "In cart" : "Add to cart"}
                                                             </button>
                                                         </div>
                                                     )}
@@ -1382,7 +1488,7 @@ export default function Homepage() {
                                                         </dl>
                                                     </div>
                                                 </article>
-                                            ))}
+                                                    )) }
                                             <button
                                                 type="button"
                                                 className="grocery-card grocery-card--add"
@@ -1449,7 +1555,6 @@ export default function Homepage() {
                                                     type="button"
                                                     onClick={() => setSelectedCategory(category.filter)}
                                                 >
-                                                    <span>{category.icon}</span>
                                                     <p>{category.label}</p>
                                                 </button>
                                             ))}
@@ -1473,7 +1578,12 @@ export default function Homepage() {
                                                     if (selectedCategory === "frozen") return item.name?.toLowerCase().includes("frozen");
                                                     return true;
                                                 })
-                                                .map((item) => (
+                                                .map((item) => {
+                                                    const outOfStock = Number(item.quantity ?? 0) <= 0;
+                                                    const quantityInputId = `marketplace-qty-${item.id}`;
+                                                    const maxSelectable = Math.max(1, Math.floor(Number(item.quantity ?? 1)));
+                                                    const selectionValue = cartSelections[item.id] ?? 1;
+                                                    return (
                                                 <article
                                                     className={`grocery-card ${item.sellerId !== user?.id ? "is-other" : ""}`}
                                                     key={`${item.id}-market`}
@@ -1559,7 +1669,10 @@ export default function Homepage() {
                                                         </dl>
                                                     </div>
                                                 </article>
-                                            ))}
+                                                    );
+                                                })}
+                                        </div>
+                                        <div className="groceries-grid">
                                         </div>
                                         {marketplaceItems.length === 0 && !marketState.loading && (
                                             <p className="helper-text">
@@ -1590,51 +1703,23 @@ export default function Homepage() {
                             className="chatbot-bubble-image"
                         />
                         <div className="chatbot-bubble-content">
-                            {chatbotRecipe.data ? (
-                                <div className="chatbot-recipe">
-                                    <p className="chatbot-recipe-label">Dinner inspo</p>
-                                    <p className="chatbot-recipe-title">
-                                        {chatbotRecipe.data.title ?? "Pantry inspiration"}
-                                    </p>
-                                    <a
-                                        href={chatbotRecipe.data.url}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        className="chatbot-recipe-link"
-                                    >
-                                        View recipe online
-                                    </a>
-                                </div>
-                            ) : (
-                                <>
-                                    <p className="chatbot-bubble-text">Have you eaten today?</p>
-                                    {chatbotRecipe.error && (
-                                        <p className="chatbot-recipe-error">{chatbotRecipe.error}</p>
-                                    )}
-                                    {chatbotRecipe.loading ? (
-                                        <p className="chatbot-recipe-loading">
-                                            Stirring together a recipe from your groceries…
-                                        </p>
-                                    ) : (
-                                        <div className="chatbot-bubble-buttons">
-                                            <button
-                                                type="button"
-                                                className="chatbot-bubble-button"
-                                                onClick={handleChatbotYes}
-                                            >
-                                                Yes
-                                            </button>
-                                            <button
-                                                type="button"
-                                                className="chatbot-bubble-button"
-                                                onClick={handleChatbotNo}
-                                            >
-                                                No
-                                            </button>
-                                        </div>
-                                    )}
-                                </>
-                            )}
+                            <p className="chatbot-bubble-text">Have you eaten today?</p>
+                            <div className="chatbot-bubble-buttons">
+                                <button
+                                    type="button"
+                                    className="chatbot-bubble-button"
+                                    onClick={handleChatbotYes}
+                                >
+                                    Yes
+                                </button>
+                                <button
+                                    type="button"
+                                    className="chatbot-bubble-button"
+                                    onClick={handleChatbotNo}
+                                >
+                                    No
+                                </button>
+                            </div>
                         </div>
                     </div>
                 )}
@@ -1642,11 +1727,11 @@ export default function Homepage() {
                     type="button"
                     className="chatbot-trigger"
                     onFocus={handleChatbotInteractionStart}
-                    aria-label="Open SaveOurFoods chatbot"
+                    aria-label="Open SaveMyFoods chatbot"
                 >
                     <Image
                         src={chatbotImageSrc}
-                        alt="SaveOurFoods chatbot"
+                        alt="SaveMyFoods chatbot"
                         width={140}
                         height={140}
                         className="chatbot-image"
