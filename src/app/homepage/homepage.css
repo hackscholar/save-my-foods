@@ -241,6 +241,24 @@
 .category-tile span {
     font-size: 1.4rem;
 }
+.category-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.15rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    background: #ecfdf5;
+    color: #065f46;
+}
+
+.category-pill--muted {
+    background: #f3f4f6;
+    color: #6b7280;
+}
 
 /* HEADER */
 .homepage-header {
@@ -705,6 +723,14 @@
 .selling-meta {
     font-size: 0.78rem;
     color: #6b7280;
+    display: flex;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.selling-meta__category {
+    font-size: 0.65rem;
 }
 
 .selling-item__actions {
@@ -793,6 +819,12 @@
     color: #b91c1c;
     cursor: pointer;
     font-size: 0.8rem;
+}
+
+.cart-item-category {
+    display: inline-flex;
+    margin-left: 0.35rem;
+    font-size: 0.6rem;
 }
 
 .cart-list li button:hover {
@@ -1020,6 +1052,13 @@
     font-size: 0.7rem;
     text-transform: uppercase;
     color: #4b5563;
+}
+
+.grocery-card__category-pill {
+    position: absolute;
+    left: 10px;
+    bottom: 10px;
+    box-shadow: 0 6px 16px rgba(6, 95, 70, 0.16);
 }
 
 .grocery-card__body h3 {

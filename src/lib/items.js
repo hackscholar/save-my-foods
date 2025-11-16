@@ -1,4 +1,5 @@
 import { getSupabaseServiceClient } from "@/lib/supabase";
+import { ITEM_CATEGORY_VALUES, normalizeCategory } from "@/lib/item-categories";
 
 const ITEMS_TABLE = "items";
 const ITEM_TYPES = ["inventory", "marketplace"];
@@ -48,7 +49,22 @@ export function validateItemInput(payload = {}) {
     issues.dateOfPurchase = "dateOfPurchase must be a valid date.";
   }
 
+  if (
+    payload.category !== undefined &&
+    payload.category !== null &&
+    String(payload.category).trim() !== ""
+  ) {
+    const normalized = normalizeCategory(payload.category);
+    if (!normalized) {
+      issues.category = `category must be one of: ${ITEM_CATEGORY_VALUES.join(", ")}.`;
+    }
+  }
+
   return issues;
+}
+
+function sanitizeCategory(value) {
+  return normalizeCategory(value) ?? null;
 }
 
 export async function createItem(payload) {
@@ -59,6 +75,7 @@ export async function createItem(payload) {
     name: payload.name?.trim() || "Pending classification",
     expiry_date: payload.expiryDate ?? null,
     date_of_purchase: payload.dateOfPurchase ?? null,
+    category: sanitizeCategory(payload.category),
     price:
       payload.price !== undefined && payload.price !== null ? toNumber(payload.price) : null,
     quantity: Number(payload.quantity),
@@ -105,6 +122,7 @@ export async function updateItem(itemId, patch = {}) {
   if (patch.price !== undefined) updatePayload.price = patch.price;
   if (patch.quantity !== undefined) updatePayload.quantity = patch.quantity;
   if (patch.imagePath !== undefined) updatePayload.image_path = patch.imagePath;
+  if (patch.category !== undefined) updatePayload.category = sanitizeCategory(patch.category);
 
   if (Object.keys(updatePayload).length === 0) {
     throw new Error("No valid fields provided to update item.");
@@ -178,6 +196,7 @@ export function formatItem(record) {
     price: record.price,
     quantity: record.quantity,
     imagePath: record.image_path,
+    category: record.category ?? null,
     createdAt: record.created_at,
     updatedAt: record.updated_at,
   };

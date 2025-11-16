@@ -47,6 +47,7 @@ export async function POST(request) {
       const patch = {};
       if (aiResult.name) patch.name = aiResult.name;
       if (aiResult.expiryDate) patch.expiryDate = aiResult.expiryDate;
+      if (aiResult.category) patch.category = aiResult.category;
       if (Object.keys(patch).length > 0) {
         updatedItem = await updateItem(itemId, patch);
       }

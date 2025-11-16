@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { createClient as createSupabaseBrowserClient } from "@/utils/supabase/client";
+import { ITEM_CATEGORIES, getCategoryLabel } from "@/lib/item-categories";
 import IngredientPopup from "../components/ingedientspopup";
 import "./homepage.css";
 
@@ -15,6 +16,13 @@ const CHATBOT_IMAGES = {
 
 const CHATBOT_SPEAK_DELAY = 1500;
 const INITIAL_CHATBOT_RECIPE = { loading: false, data: null, error: null };
+const CATEGORY_SHORTCUTS = [
+  { label: "All", value: null },
+  ...ITEM_CATEGORIES.map(({ value, label }) => ({
+    label,
+    value,
+  })),
+];
 
 function toDateInput(value) {
   if (!value) return "";
@@ -75,6 +83,7 @@ function createEmptyForm() {
     expiryDate: "",
     dateOfPurchase: toDateInput(new Date()),
     imagePath: "",
+    category: "",
   };
 }
 
@@ -91,6 +100,13 @@ function applyFilters(items = [], filters) {
       )
     : items;
   return sortItems(filtered, filters.sort);
+}
+
+function filterByCategory(items = [], category) {
+  if (!category) {
+    return items;
+  }
+  return items.filter((item) => item.category === category);
 }
 
 function formatNotification(record) {
@@ -177,6 +193,8 @@ export default function Homepage() {
   const [chatbotState, setChatbotState] = useState("idle");
   const [isIngredientPopupOpen, setIngredientPopupOpen] = useState(false);
   const [chatbotRecipe, setChatbotRecipe] = useState(INITIAL_CHATBOT_RECIPE);
+  const [selectedCategory, setSelectedCategory] = useState(null);
+  const categoryShortcuts = CATEGORY_SHORTCUTS;
 
   useEffect(() => {
     const timer = setTimeout(() => setHasEntered(true), 3000);
@@ -601,6 +619,7 @@ export default function Homepage() {
         expiryDate: newItem.expiryDate || null,
         dateOfPurchase: newItem.dateOfPurchase || null,
         imagePath: newItem.imagePath || null,
+        category: newItem.category || null,
       };
 
       const requestInit =
@@ -726,6 +745,7 @@ export default function Homepage() {
       }
       const aiName = enrichData.item?.name ?? enrichData.ai?.name ?? null;
       const aiExpiry = enrichData.item?.expiryDate ?? enrichData.ai?.expiryDate ?? null;
+      const aiCategory = enrichData.item?.category ?? enrichData.ai?.category ?? null;
       const inferredQuantity = enrichData.ai?.quantity ?? null;
       const parsedQuantity =
         inferredQuantity !== null && inferredQuantity !== undefined
@@ -739,6 +759,7 @@ export default function Homepage() {
           parsedQuantity !== null && !Number.isNaN(parsedQuantity) && parsedQuantity > 0
             ? String(parsedQuantity)
             : prev.quantity,
+        category: aiCategory ?? prev.category,
       }));
       setEnrichState({ loading: false, error: null });
     } catch (error) {
@@ -755,6 +776,7 @@ export default function Homepage() {
       expiryDate: toDateInput(item.expiryDate),
       dateOfPurchase: toDateInput(item.dateOfPurchase) || toDateInput(new Date()),
       imagePath: item.imagePath ?? "",
+      category: item.category ?? "",
     });
     setUploadState({ uploading: false, error: null });
     setEnrichState({ loading: false, error: null });
@@ -846,6 +868,8 @@ export default function Homepage() {
     inventoryFilters,
   );
   const marketplaceItems = applyFilters(marketItems, marketFilters);
+  const filteredInventoryItems = filterByCategory(inventoryItems, selectedCategory);
+  const filteredMarketplaceItems = filterByCategory(marketplaceItems, selectedCategory);
   const unreadNotifications = notifications.filter(
     (notification) => !notification.read,
   ).length;
@@ -864,6 +888,7 @@ export default function Homepage() {
           sellerId: item.sellerId,
           quantity: desired,
           availableQuantity: available,
+          category: item.category ?? null,
         },
       ];
     });
@@ -986,18 +1011,10 @@ export default function Homepage() {
       }),
     );
   }
-  const categoryShortcuts = [
-    { label: "All", filter: null },
-    { label: "Produce", filter: "produce" },
-    { label: "Bakery", filter: "bakery" },
-    { label: "Meat & Seafood", filter: "meat" },
-    { label: "Dairy & Eggs", filter: "dairy" },
-    { label: "Pantry", filter: "pantry" },
-    { label: "Snacks", filter: "snacks" },
-    { label: "Frozen", filter: "frozen" },
-  ];
-  const [selectedCategory, setSelectedCategory] = useState(null);
   const chatbotImageSrc = CHATBOT_IMAGES[chatbotState] ?? CHATBOT_IMAGES.idle;
+  function handleCategorySelect(value) {
+    setSelectedCategory((prev) => (prev === value ? null : value));
+  }
 
   return (
     <main className="homepage-root">
@@ -1098,7 +1115,7 @@ export default function Homepage() {
                                             <p className="notification-empty">Loading alerts...</p>
                                         ) : notifications.length === 0 ? (
                                             <p className="notification-empty">
-                                                You're all caught up.
+                                                You&apos;re all caught up.
                                             </p>
                                         ) : (
                                             <ul className="notification-list">
@@ -1221,7 +1238,14 @@ export default function Homepage() {
                                                                 : ""}
                                                         </span>
                                                         <div className="selling-meta">
-                                                            Qty: {item.quantity ?? 0}
+                                                            <span>Qty: {item.quantity ?? 0}</span>
+                                                            <span
+                                                                className={`category-pill selling-meta__category ${
+                                                                    item.category ? "" : "category-pill--muted"
+                                                                }`}
+                                                            >
+                                                                {getCategoryLabel(item.category)}
+                                                            </span>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -1266,6 +1290,13 @@ export default function Homepage() {
                                                                 {item.price !== null && item.price !== undefined
                                                                     ? `$${Number(item.price).toFixed(2)}`
                                                                     : "$0.00"}
+                                                            </span>
+                                                            <span
+                                                                className={`cart-item-category category-pill ${
+                                                                    item.category ? "" : "category-pill--muted"
+                                                                }`}
+                                                            >
+                                                                {getCategoryLabel(item.category)}
                                                             </span>
                                                         </div>
                                                         <button
@@ -1391,17 +1422,17 @@ export default function Homepage() {
                                         <div className="category-strip marketplace-filter">
                                             {categoryShortcuts.map((category) => (
                                                 <button
-                                                    key={category.label}
-                                                    className={selectedCategory === category.filter ? "active" : ""}
+                                                    key={category.value ?? "all"}
+                                                    className={selectedCategory === category.value ? "active" : ""}
                                                     type="button"
-                                                    onClick={() => setSelectedCategory(category.filter)}
+                                                    onClick={() => handleCategorySelect(category.value)}
                                                 >
                                                     <p>{category.label}</p>
                                                 </button>
                                             ))}
                                         </div>
                                         <div className="groceries-grid">
-                                            {inventoryItems.map((item) => (
+                                            {filteredInventoryItems.map((item) => (
                                                 <article
                                                     className={`grocery-card ${
                                                         item.sellerId !== user?.id ? "is-other" : ""
@@ -1480,6 +1511,13 @@ export default function Homepage() {
                                                                 No image
                                                             </div>
                                                         )}
+                                                        <span
+                                                            className={`grocery-card__category-pill category-pill ${
+                                                                item.category ? "" : "category-pill--muted"
+                                                            }`}
+                                                        >
+                                                            {getCategoryLabel(item.category)}
+                                                        </span>
                                                         <span className="grocery-card__type">
                                                             {item.type}
                                                         </span>
@@ -1518,9 +1556,11 @@ export default function Homepage() {
                                                 <span>Add new item</span>
                                             </button>
                                         </div>
-                                        {inventoryItems.length === 0 && !itemsState.loading && (
+                                        {filteredInventoryItems.length === 0 && !itemsState.loading && (
                                             <p className="helper-text">
-                                                You have not added any groceries yet.
+                                                {inventoryItems.length === 0
+                                                    ? "You have not added any groceries yet."
+                                                    : "No groceries match this category yet."}
                                             </p>
                                         )}
                                     </div>
@@ -1569,10 +1609,10 @@ export default function Homepage() {
                                         <div className="category-strip marketplace-filter">
                                             {categoryShortcuts.map((category) => (
                                                 <button
-                                                    key={`market-${category.label}`}
-                                                    className={selectedCategory === category.filter ? "active" : ""}
+                                                    key={`market-${category.value ?? "all"}`}
+                                                    className={selectedCategory === category.value ? "active" : ""}
                                                     type="button"
-                                                    onClick={() => setSelectedCategory(category.filter)}
+                                                    onClick={() => handleCategorySelect(category.value)}
                                                 >
                                                     <p>{category.label}</p>
                                                 </button>
@@ -1585,24 +1625,12 @@ export default function Homepage() {
                                             <p className="helper-text error">{unlistState.error}</p>
                                         )}
                                         <div className="groceries-grid">
-                                            {marketplaceItems
-                                                .filter((item) => {
-                                                    if (!selectedCategory) return true;
-                                                    if (selectedCategory === "produce") return item.name?.toLowerCase().includes("tomato") || item.name?.toLowerCase().includes("banana") || item.name?.toLowerCase().includes("carrot");
-                                                    if (selectedCategory === "bakery") return item.name?.toLowerCase().includes("bread");
-                                                    if (selectedCategory === "meat") return item.name?.toLowerCase().includes("chicken");
-                                                    if (selectedCategory === "dairy") return item.name?.toLowerCase().includes("milk") || item.name?.toLowerCase().includes("cheese");
-                                                    if (selectedCategory === "pantry") return item.name?.toLowerCase().includes("rice");
-                                                    if (selectedCategory === "snacks") return item.name?.toLowerCase().includes("chips");
-                                                    if (selectedCategory === "frozen") return item.name?.toLowerCase().includes("frozen");
-                                                    return true;
-                                                })
-                                                .map((item) => {
-                                                    const outOfStock = Number(item.quantity ?? 0) <= 0;
-                                                    const quantityInputId = `marketplace-qty-${item.id}`;
-                                                    const maxSelectable = Math.max(1, Math.floor(Number(item.quantity ?? 1)));
-                                                    const selectionValue = cartSelections[item.id] ?? 1;
-                                                    return (
+                                            {filteredMarketplaceItems.map((item) => {
+                                                const outOfStock = Number(item.quantity ?? 0) <= 0;
+                                                const quantityInputId = `marketplace-qty-${item.id}`;
+                                                const maxSelectable = Math.max(1, Math.floor(Number(item.quantity ?? 1)));
+                                                const selectionValue = cartSelections[item.id] ?? 1;
+                                                return (
                                                 <article
                                                     className={`grocery-card ${item.sellerId !== user?.id ? "is-other" : ""}`}
                                                     key={`${item.id}-market`}
@@ -1665,6 +1693,13 @@ export default function Homepage() {
                                                                 No image
                                                             </div>
                                                         )}
+                                                        <span
+                                                            className={`grocery-card__category-pill category-pill ${
+                                                                item.category ? "" : "category-pill--muted"
+                                                            }`}
+                                                        >
+                                                            {getCategoryLabel(item.category)}
+                                                        </span>
                                                         <span className="grocery-card__type">
                                                             {item.type}
                                                         </span>
@@ -1691,11 +1726,11 @@ export default function Homepage() {
                                                     );
                                                 })}
                                         </div>
-                                        <div className="groceries-grid">
-                                        </div>
-                                        {marketplaceItems.length === 0 && !marketState.loading && (
+                                        {filteredMarketplaceItems.length === 0 && !marketState.loading && (
                                             <p className="helper-text">
-                                                No marketplace items yet.
+                                                {marketplaceItems.length === 0
+                                                    ? "No marketplace items yet."
+                                                    : "No marketplace items match this category yet."}
                                             </p>
                                         )}
                                     </div>
@@ -1816,6 +1851,21 @@ export default function Homepage() {
                                     onChange={handleNewItemChange}
                                     required
                                 />
+                            </label>
+                            <label className="field">
+                                <span>Category</span>
+                                <select
+                                    name="category"
+                                    value={newItem.category}
+                                    onChange={handleNewItemChange}
+                                >
+                                    <option value="">Select category</option>
+                                    {ITEM_CATEGORIES.map((category) => (
+                                        <option key={category.value} value={category.value}>
+                                            {category.label}
+                                        </option>
+                                    ))}
+                                </select>
                             </label>
                             <label className="field">
                                 <span>Expiry date</span>

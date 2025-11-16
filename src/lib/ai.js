@@ -1,7 +1,10 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { ITEM_CATEGORY_VALUES, normalizeCategory } from "@/lib/item-categories";
 
 const globalForAI = globalThis;
 const DEFAULT_MODEL = "gemini-2.5-flash";
+const CATEGORY_PROMPT_VALUES = ITEM_CATEGORY_VALUES.join(", ");
+const CATEGORY_PROMPT_CHOICES = ITEM_CATEGORY_VALUES.join("|");
 
 function ensureGeminiClient() {
   if (!globalForAI.__geminiClient) {
@@ -72,12 +75,14 @@ You analyze grocery images. Return JSON like:
   "name": "string|null",
   "expiryDate": "YYYY-MM-DD|null",
   "quantity": number|null,
+  "category": "${CATEGORY_PROMPT_CHOICES}|null",
   "confidence": 0-1,
   "notes": "string|null"
 }
 - Guess the item name (concise).
 - Estimate how many whole items/servings are visible as an integer (or null if uncertain).
 - Estimate expiry date only if label/date info exists; otherwise null.
+- Classify the food into one of: ${CATEGORY_PROMPT_VALUES}. Output null only if unsure.
 - Do not invent impossible values.${purchaseContext}
   `.trim();
 
@@ -101,6 +106,7 @@ You analyze grocery images. Return JSON like:
     name: parsed.name ?? null,
     expiryDate: parsed.expiryDate ?? parsed.expiry_date ?? null,
     quantity: parsed.quantity ?? null,
+    category: normalizeCategory(parsed.category ?? parsed.category_guess ?? null),
     confidence: parsed.confidence ?? null,
     notes: parsed.notes ?? null,
     raw: parsed,
