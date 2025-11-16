@@ -1,5 +1,26 @@
 import { NextResponse } from "next/server";
-import { createItem, validateItemInput } from "@/lib/items";
+import { createItem, validateItemInput, listItemsBySeller } from "@/lib/items";
+
+export async function GET(request) {
+  const sellerId = request.nextUrl.searchParams.get("sellerId");
+  if (!sellerId) {
+    return NextResponse.json(
+      { error: "sellerId query parameter is required." },
+      { status: 400 },
+    );
+  }
+
+  try {
+    const items = await listItemsBySeller(sellerId);
+    return NextResponse.json({ items });
+  } catch (error) {
+    console.error("Failed to load items", error);
+    return NextResponse.json(
+      { error: "Unable to load items right now. Please try again later." },
+      { status: 500 },
+    );
+  }
+}
 
 export async function POST(request) {
   let payload = {};

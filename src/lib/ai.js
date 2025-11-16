@@ -66,15 +66,17 @@ export async function generateItemMetadataFromImage(imageUrl, options = {}) {
     ? `\nDate of purchase: ${dateOfPurchase}. Estimate an expiry/best-before date based on typical shelf life relative to this purchase date.`
     : "";
 
-  const prompt = `
+const prompt = `
 You analyze grocery images. Return JSON like:
 {
   "name": "string|null",
   "expiryDate": "YYYY-MM-DD|null",
+  "quantity": number|null,
   "confidence": 0-1,
   "notes": "string|null"
 }
 - Guess the item name (concise).
+- Estimate how many whole items/servings are visible as an integer (or null if uncertain).
 - Estimate expiry date only if label/date info exists; otherwise null.
 - Do not invent impossible values.${purchaseContext}
   `.trim();
@@ -98,6 +100,7 @@ You analyze grocery images. Return JSON like:
   return {
     name: parsed.name ?? null,
     expiryDate: parsed.expiryDate ?? parsed.expiry_date ?? null,
+    quantity: parsed.quantity ?? null,
     confidence: parsed.confidence ?? null,
     notes: parsed.notes ?? null,
     raw: parsed,
