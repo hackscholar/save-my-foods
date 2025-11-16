@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { createClient as createSupabaseBrowserClient } from "@/utils/supabase/client";
+import { ITEM_CATEGORY_OPTIONS } from "@/lib/itemCategories";
 import IngredientPopup from "../components/ingedientspopup";
 import "./homepage.css";
 
@@ -15,6 +16,10 @@ const CHATBOT_IMAGES = {
 
 const CHATBOT_SPEAK_DELAY = 1500;
 const INITIAL_CHATBOT_RECIPE = { loading: false, data: null, error: null };
+const DEFAULT_ITEM_CATEGORY =
+  ITEM_CATEGORY_OPTIONS.find((option) => option.id === "other")?.id ??
+  ITEM_CATEGORY_OPTIONS[0]?.id ??
+  "";
 
 function toDateInput(value) {
   if (!value) return "";
@@ -75,6 +80,7 @@ function createEmptyForm() {
     expiryDate: "",
     dateOfPurchase: toDateInput(new Date()),
     imagePath: "",
+    category: DEFAULT_ITEM_CATEGORY,
   };
 }
 
@@ -83,13 +89,25 @@ function sortItems(items = [], sortKey = "expiry") {
   return [...items].sort(sorter);
 }
 
-function applyFilters(items = [], filters) {
+function applyFilters(items = [], filters, categoryFilter = null) {
+  const normalizedCategory = categoryFilter ?? null;
+  const categoryFiltered =
+    normalizedCategory === null
+      ? items
+      : items.filter((item) => {
+          const itemCategory = item.category ?? null;
+          if (normalizedCategory === "other") {
+            return !itemCategory || itemCategory === "other";
+          }
+          return itemCategory === normalizedCategory;
+        });
+
   const query = filters.search.trim().toLowerCase();
   const filtered = query
-    ? items.filter((item) =>
+    ? categoryFiltered.filter((item) =>
         (item.name ?? "").toLowerCase().includes(query),
       )
-    : items;
+    : categoryFiltered;
   return sortItems(filtered, filters.sort);
 }
 
@@ -177,6 +195,7 @@ export default function Homepage() {
   const [chatbotState, setChatbotState] = useState("idle");
   const [isIngredientPopupOpen, setIngredientPopupOpen] = useState(false);
   const [chatbotRecipe, setChatbotRecipe] = useState(INITIAL_CHATBOT_RECIPE);
+  const [selectedCategory, setSelectedCategory] = useState(null);
 
   useEffect(() => {
     const timer = setTimeout(() => setHasEntered(true), 3000);
@@ -601,6 +620,7 @@ export default function Homepage() {
         expiryDate: newItem.expiryDate || null,
         dateOfPurchase: newItem.dateOfPurchase || null,
         imagePath: newItem.imagePath || null,
+        category: newItem.category || DEFAULT_ITEM_CATEGORY || null,
       };
 
       const requestInit =
@@ -755,6 +775,7 @@ export default function Homepage() {
       expiryDate: toDateInput(item.expiryDate),
       dateOfPurchase: toDateInput(item.dateOfPurchase) || toDateInput(new Date()),
       imagePath: item.imagePath ?? "",
+      category: item.category ?? DEFAULT_ITEM_CATEGORY,
     });
     setUploadState({ uploading: false, error: null });
     setEnrichState({ loading: false, error: null });
@@ -844,8 +865,9 @@ export default function Homepage() {
   const inventoryItems = applyFilters(
     items.filter((item) => item.type !== "marketplace"),
     inventoryFilters,
+    selectedCategory,
   );
-  const marketplaceItems = applyFilters(marketItems, marketFilters);
+  const marketplaceItems = applyFilters(marketItems, marketFilters, selectedCategory);
   const unreadNotifications = notifications.filter(
     (notification) => !notification.read,
   ).length;
@@ -932,7 +954,7 @@ export default function Homepage() {
       if (data.pdf) {
         const link = document.createElement("a");
         link.href = `data:application/pdf;base64,${data.pdf}`;
-        link.download = data.fileName ?? `savemyfoods-receipt-${Date.now()}.pdf`;
+        link.download = data.fileName ?? `saveourfoods-receipt-${Date.now()}.pdf`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -996,7 +1018,6 @@ export default function Homepage() {
     { label: "Snacks", filter: "snacks" },
     { label: "Frozen", filter: "frozen" },
   ];
-  const [selectedCategory, setSelectedCategory] = useState(null);
   const chatbotImageSrc = CHATBOT_IMAGES[chatbotState] ?? CHATBOT_IMAGES.idle;
 
   return (
@@ -1007,7 +1028,7 @@ export default function Homepage() {
                     }`}
             >
                 <div className="intro-content">
-                    <h1 className="intro-title hover-grow">SaveMyFoods</h1>
+                    <h1 className="intro-title hover-grow">SaveOurFoods</h1>
 
                     <p className="intro-subtitle">
                         <span className="typewriter hover-grow">
@@ -1042,12 +1063,12 @@ export default function Homepage() {
                     <div className="header-left">
                         <Image
                             src="/icon.png"
-                            alt="SaveMyFoods logo"
+                            alt="SaveOurFoods logo"
                             width={50}
                             height={50}
                             className="header-logo"
                         />
-                        <span className="header-title">SaveMyFoods</span>
+                        <span className="header-title">SaveOurFoods</span>
                     </div>
                     <div className="header-right">
                         <div className="notification-center" ref={notificationsMenuRef}>
@@ -1394,7 +1415,13 @@ export default function Homepage() {
                                                     key={category.label}
                                                     className={selectedCategory === category.filter ? "active" : ""}
                                                     type="button"
-                                                    onClick={() => setSelectedCategory(category.filter)}
+                                                    onClick={() =>
+                                                        category.filter === null
+                                                            ? setSelectedCategory(null)
+                                                            : setSelectedCategory((prev) =>
+                                                                  prev === category.filter ? null : category.filter,
+                                                              )
+                                                    }
                                                 >
                                                     <p>{category.label}</p>
                                                 </button>
@@ -1572,7 +1599,13 @@ export default function Homepage() {
                                                     key={`market-${category.label}`}
                                                     className={selectedCategory === category.filter ? "active" : ""}
                                                     type="button"
-                                                    onClick={() => setSelectedCategory(category.filter)}
+                                                    onClick={() =>
+                                                        category.filter === null
+                                                            ? setSelectedCategory(null)
+                                                            : setSelectedCategory((prev) =>
+                                                                  prev === category.filter ? null : category.filter,
+                                                              )
+                                                    }
                                                 >
                                                     <p>{category.label}</p>
                                                 </button>
@@ -1693,6 +1726,8 @@ export default function Homepage() {
                                         </div>
                                         <div className="groceries-grid">
                                         </div>
+                                        <div className="groceries-grid">
+                                        </div>
                                         {marketplaceItems.length === 0 && !marketState.loading && (
                                             <p className="helper-text">
                                                 No marketplace items yet.
@@ -1746,11 +1781,11 @@ export default function Homepage() {
                     type="button"
                     className="chatbot-trigger"
                     onFocus={handleChatbotInteractionStart}
-                    aria-label="Open SaveMyFoods chatbot"
+                    aria-label="Open SaveOurFoods chatbot"
                 >
                     <Image
                         src={chatbotImageSrc}
-                        alt="SaveMyFoods chatbot"
+                        alt="SaveOurFoods chatbot"
                         width={140}
                         height={140}
                         className="chatbot-image"
@@ -1816,6 +1851,22 @@ export default function Homepage() {
                                     onChange={handleNewItemChange}
                                     required
                                 />
+                            </label>
+                            <label className="field">
+                                <span>Category</span>
+                                <select
+                                    name="category"
+                                    value={newItem.category}
+                                    onChange={handleNewItemChange}
+                                    required
+                                >
+                                    <option value="">Select a category</option>
+                                    {ITEM_CATEGORY_OPTIONS.map((option) => (
+                                        <option key={option.id} value={option.id}>
+                                            {option.label}
+                                        </option>
+                                    ))}
+                                </select>
                             </label>
                             <label className="field">
                                 <span>Expiry date</span>

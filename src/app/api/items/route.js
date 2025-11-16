@@ -64,6 +64,9 @@ export async function PATCH(request) {
   if (payload.imagePath !== undefined || payload.image_path !== undefined) {
     patch.imagePath = payload.imagePath ?? payload.image_path;
   }
+  if (payload.category !== undefined) {
+    patch.category = payload.category;
+  }
 
   if (Object.keys(patch).length === 0) {
     return NextResponse.json(
@@ -101,6 +104,7 @@ export async function POST(request) {
     price: payload.price,
     quantity: payload.quantity,
     imagePath: payload.imagePath ?? payload.image_path ?? null,
+    category: payload.category ?? null,
   };
 
   const validationErrors = validateItemInput(submission);

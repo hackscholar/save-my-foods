@@ -10,7 +10,7 @@
     justify-content: center;
 }
 
-/* INTRO OVERLAY — transparent green, auto fade */
+/* INTRO OVERLAY — transparent green, auto fade yes */
 .intro-overlay {
     position: fixed;
     inset: 0;
@@ -1171,6 +1171,36 @@
     display: flex;
     flex-direction: column;
     gap: 0.85rem;
+}
+
+.field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.field span {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #374151;
+}
+
+.field input,
+.field select {
+    border-radius: 12px;
+    border: 1px solid #d1d5db;
+    padding: 0.6rem 0.85rem;
+    font-size: 0.95rem;
+    background: #f9fafb;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.field input:focus,
+.field select:focus {
+    outline: none;
+    border-color: #1e9f49;
+    box-shadow: 0 0 0 2px rgba(30, 159, 73, 0.12);
+    background: #ffffff;
 }
 
 .modal-actions {
