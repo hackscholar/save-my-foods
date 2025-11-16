@@ -15,7 +15,7 @@
 .intro-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(30, 159, 73, 0.85);
+    background: rgba(82, 186, 116, 0.734);
     /* transparent Save-On-Foods green */
     display: flex;
     align-items: center;
@@ -76,7 +76,7 @@
     overflow: hidden;
     border-right: 2px solid #1e9f49;
     animation:
-            typing 2.8s steps(40, end) forwards,
+            typing 2.8s steps(35, end) forwards,
             blink-caret 0.9s step-end infinite;
 }
 
